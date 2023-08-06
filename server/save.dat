@@ -1,0 +1,3 @@
+task_path = ./task/main.py
+task_type = py
+client_path = ./target/debug/server.exe
