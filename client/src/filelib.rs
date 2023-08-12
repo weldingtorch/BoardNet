@@ -1,5 +1,5 @@
 use std::collections::hash_map::{DefaultHasher, HashMap};
-use std::default;
+//use std::default;
 use std::hash::{Hash, Hasher};
 pub use std::io::{Read, Write, BufRead, BufReader, BufWriter, Error};
 use std::fs::File;
@@ -50,16 +50,12 @@ impl Display for TaskType {
 /*
 #[derive(Debug, Clone, Copy)]
 pub struct CachedData {
-    pub task_hash: u64,
     pub client_hash: u64,
     pub public_key: u64,
     pub private_key: u64,
 }
 
 impl CachedData {
-    fn set_task_hash(&mut self, new_task_hash: u64) {
-        self.task_hash = new_task_hash;
-    }
     fn set_client_hash(&mut self, new_client_hash: u64) {
         self.client_hash = new_client_hash;
     }
@@ -74,7 +70,6 @@ impl CachedData {
 impl Default for CachedData {
     fn default() -> Self {
         Self {
-            task_hash: Default::default(),
             client_hash: Default::default(),
             public_key: Default::default(),
             private_key: Default::default(), 
@@ -199,28 +194,13 @@ fn get_bytes_of(path: &str) -> Result<Box<[u8]>, FileError> {
     Ok(data.into_boxed_slice())
 }
 
-pub fn get_hash_of(file: FileType, save_data: &SaveData/*, cached_data: &mut CachedData*/) -> Result<u64, FileError> {
-    
-    let file_hash = match file {
-        FileType::Task => { 
-            /*
-            if cached_data.task_hash != 0u64 {
-                cached_data.task_hash
-            } else {*/
-                let task_hash = hash(&get_bytes_of(&save_data.task_path)?);
-                //cached_data.set_task_hash(task_hash);
-                task_hash
-            //}
-        },
-        FileType::Client => {
-            /*if cached_data.client_hash != 0u64 {
-                cached_data.client_hash
-            } else {*/
-                let client_hash = hash(&get_bytes_of(&save_data.client_path)?);
-                //cached_data.client_hash = client_hash;
-                client_hash
-            //}
-        },
-    };
-    Ok(file_hash)
+pub fn get_hash_of(save_data: &SaveData/*, cached_data: &mut CachedData*/) -> Result<u64, FileError> {
+    //if cached_data.client_hash != 0u64 {
+    //    cached_data.client_hash
+    //} else {
+        let client_hash = hash(&get_bytes_of(&save_data.client_path)?);
+        //cached_data.client_hash = client_hash;
+        //client_hash
+    //}
+    Ok(client_hash)
 }

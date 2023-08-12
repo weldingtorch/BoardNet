@@ -40,20 +40,23 @@ fn serve_session(stream: TcpStream,  save_data: SaveData) -> Result<(), ServerEr
             ))?;
         }
         let opcode = rx[0];
-        println!("got cmd from a client: {:?}", opcode); //dbg
-        match opcode {
-            0 => send_u64(&mut writer, get_hash_of(FileType::Task, &save_data)?)?,
-            1 => send_data(&mut writer, &get_bytes_of(&save_data.task_path)?)?,
-            2 => send_u64(&mut writer, get_hash_of(FileType::Client, &save_data)?)?,
-            3 => send_data(&mut writer, &get_bytes_of(&save_data.client_path)?)?,
-            4 => println!("stdout:{:?}", String::from_utf8(recieve_data(&mut reader)?.to_ascii_lowercase()).unwrap()),
-            5 => println!("stderr:{:?}", String::from_utf8(recieve_data(&mut reader)?.to_ascii_lowercase()).unwrap()),
-            _ => {
-                Err(ServerError::ProtocolError(
-                    "Client violated protocol".to_owned(),
-                ))?
-            }
-        };
+        
+        if 1 != 0 {
+            println!("got cmd from a {:?}: {:?}", stream.peer_addr() , opcode); //dbg
+        }
+        // match opcode {
+        //     0 => send_u64(&mut writer, get_hash_of(FileType::Task, &save_data)?)?,
+        //     1 => send_data(&mut writer, &get_bytes_of(&save_data.task_path)?)?,
+        //     2 => send_u64(&mut writer, get_hash_of(FileType::Client, &save_data)?)?,
+        //     3 => send_data(&mut writer, &get_bytes_of(&save_data.client_path)?)?,
+        //     4 => println!("stdout:{:?}", String::from_utf8(recieve_data(&mut reader)?.to_ascii_lowercase()).unwrap()),
+        //     5 => println!("stderr:{:?}", String::from_utf8(recieve_data(&mut reader)?.to_ascii_lowercase()).unwrap()),
+        //     _ => {
+        //         Err(ServerError::ProtocolError(
+        //             "Client violated protocol".to_owned(),
+        //         ))?
+        //     }
+        //};
     }
 
     //let task_file = File::open("./task/main.py").expect("Failed to open task file")

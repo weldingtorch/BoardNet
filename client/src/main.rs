@@ -15,7 +15,6 @@ use filelib::{Write, BufReader, BufWriter, SaveData, FileError, FileType, get_ha
 
 use crate::filelib::save_save_data;
 
-
 #[derive(Debug)]
 enum ClientError {
     FileError(FileError),
@@ -34,22 +33,17 @@ impl From<Error> for ClientError {
     }
 }
 
-fn update(ft: FileType, reader:&mut BufReader<&TcpStream>, writer:&mut BufWriter<&TcpStream>, save_data:&mut SaveData) -> Result<(), ClientError> {
-    let (code, path) = match ft {
-        FileType::Client => (2, &save_data.client_path),
-        FileType::Task => (0, &save_data.task_path),
-    };
+fn update(reader:&mut BufReader<&TcpStream>, writer:&mut BufWriter<&TcpStream>, save_data:&mut SaveData) -> Result<(), ClientError> {
+    let (code, path) = (2, &save_data.client_path);
     println!("a {:?}", path);
-    if path.is_empty() {
-        save_data.set_path(ft, String::from("./task/main.py"));
-    } else {
-        let l_hash = get_hash_of(ft, save_data)?;
-        send_data(writer, &[code])?;
-        let r_hash = recieve_u64(reader)?;
-        if l_hash == r_hash {
-            return Ok(());
-        } 
+
+    let l_hash = get_hash_of(save_data)?;
+    send_data(writer, &[code])?;
+    let r_hash = recieve_u64(reader)?;
+    if l_hash == r_hash {
+        return Ok(());
     }
+
     send_data(writer, &[code + 1])?;
     let new = recieve_data(reader)?;
     println!("{}", String::from_utf8(new.to_ascii_lowercase()).unwrap()); //dbg
@@ -81,14 +75,20 @@ fn main() -> Result<(), ClientError> {
     let mut reader = BufReader::new(&stream);
     let mut writer = BufWriter::new(&stream);
     
-    //update(FileType::Client, &mut reader, &mut writer, &save_data)?;
-    update(FileType::Task, &mut reader, &mut writer, &mut save_data)?;
+    update(&mut reader, &mut writer, &mut save_data)?;
 
-    let output = run_task().join().unwrap()?;
-    send_data(&mut writer, &[4])?;
-    send_data(&mut writer, &dbg!(output.stdout))?;
-    send_data(&mut writer, &[5])?;
-    send_data(&mut writer, &dbg!(output.stderr))?;
+    loop {
+        if let Ok(recv) = recieve_data(&mut reader) {
+            println!("{:?}", recv);
+        } else {
+            break;
+        }
+    }
+    // let output = run_task().join().unwrap()?;
+    // send_data(&mut writer, &[4])?;
+    // send_data(&mut writer, &dbg!(output.stdout))?;
+    // send_data(&mut writer, &[5])?;
+    // send_data(&mut writer, &dbg!(output.stderr))?;
 
     stream.shutdown(Shutdown::Both).expect("Failed to close connection to remote");
     save_save_data(&save_data)?;
@@ -96,20 +96,3 @@ fn main() -> Result<(), ClientError> {
     println!("Everything is done!");
     Ok(())
 }
-
-
-/*
-
-A workaround can be (because it doesn't overwrite itself, it just creates an other file):
-
-    copy all content of the original executable
-    modify what I need
-    rename di original executable to a fixed name "old version"
-    write the modified bytes to "original name" (the modified executable)
-    launch the new executable just created
-    either have the original executable self delete or delete it from the modified executable just created
-
-I think this gets the job done even if not on the cleanest way (the program has to start from beginning but i guess this is unavoidable)...
-
-If someone still know a better way you are more the welcome to write your idea.
- */

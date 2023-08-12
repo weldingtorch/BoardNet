@@ -25,7 +25,6 @@ pub fn recieve_data(reader: &mut BufReader<&TcpStream>) -> Result<Box<[u8]>, Err
 }
 
 pub fn send_u64(writer: &mut BufWriter<&TcpStream>, data: u64) -> Result<(), Error> {
-    println!("Sending data: {}", data);
     writer.write_all(&data.to_be_bytes())?;
     writer.flush()?; // Maybe I don't need to flush. Will check that later.
     Ok(())
@@ -33,6 +32,7 @@ pub fn send_u64(writer: &mut BufWriter<&TcpStream>, data: u64) -> Result<(), Err
 
 pub fn send_data(writer: &mut BufWriter<&TcpStream>, data: &[u8]) -> Result<(), Error> {
     send_u64(writer, data.len() as u64)?;
+    println!("Sending data. Size:{}", data.len() as u64);
     writer.write_all(data)?;
     writer.flush()?; // This one too.
     Ok(())
