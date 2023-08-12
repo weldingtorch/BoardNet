@@ -41,22 +41,20 @@ fn serve_session(stream: TcpStream,  save_data: SaveData) -> Result<(), ServerEr
         }
         let opcode = rx[0];
         
-        if 1 != 0 {
-            println!("got cmd from a {:?}: {:?}", stream.peer_addr() , opcode); //dbg
-        }
-        // match opcode {
-        //     0 => send_u64(&mut writer, get_hash_of(FileType::Task, &save_data)?)?,
-        //     1 => send_data(&mut writer, &get_bytes_of(&save_data.task_path)?)?,
-        //     2 => send_u64(&mut writer, get_hash_of(FileType::Client, &save_data)?)?,
-        //     3 => send_data(&mut writer, &get_bytes_of(&save_data.client_path)?)?,
-        //     4 => println!("stdout:{:?}", String::from_utf8(recieve_data(&mut reader)?.to_ascii_lowercase()).unwrap()),
-        //     5 => println!("stderr:{:?}", String::from_utf8(recieve_data(&mut reader)?.to_ascii_lowercase()).unwrap()),
-        //     _ => {
-        //         Err(ServerError::ProtocolError(
-        //             "Client violated protocol".to_owned(),
-        //         ))?
-        //     }
-        //};
+        println!("got cmd from a [{:?}]: {:?}", stream.peer_addr().unwrap() , opcode); //dbg
+        
+        match opcode {
+            //1 => send_data(&mut writer, &get_bytes_of(&save_data.task_path)?)?,
+            255 => send_u64(&mut writer, get_hash_of(&save_data)?)?,
+            3 => send_data(&mut writer, &get_bytes_of(&save_data.client_path)?)?,
+            4 => println!("stdout:{:?}", String::from_utf8(recieve_data(&mut reader)?.to_ascii_lowercase()).unwrap()),
+            5 => println!("stderr:{:?}", String::from_utf8(recieve_data(&mut reader)?.to_ascii_lowercase()).unwrap()),
+            _ => {
+                Err(ServerError::ProtocolError(
+                    "Client violated protocol".to_owned(),
+                ))?
+            }
+        };
     }
 
     //let task_file = File::open("./task/main.py").expect("Failed to open task file")
@@ -70,7 +68,7 @@ fn main() -> Result<(), ServerError> {
     let save_data = load_save_data()?;
     let mut handles = vec!();
     let listener = start_listener("127.0.0.1:1337")?;
-    let running = true;
+    let mut running = true;
     
 
     while running {
@@ -81,6 +79,7 @@ fn main() -> Result<(), ServerError> {
             println!("Serving {addr}");
             serve_session(stream, thread_save_data)
         }));
+        running = false;
     }
 
     for handle in handles.into_iter() {

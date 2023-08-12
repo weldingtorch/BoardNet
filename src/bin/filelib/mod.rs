@@ -1,5 +1,5 @@
 use std::collections::hash_map::{DefaultHasher, HashMap};
-use std::default;
+//use std::default;
 use std::hash::{Hash, Hasher};
 pub use std::io::{Read, Write, BufRead, BufReader, BufWriter, Error};
 use std::fs::File;
@@ -50,16 +50,12 @@ impl Display for TaskType {
 /*
 #[derive(Debug, Clone, Copy)]
 pub struct CachedData {
-    pub task_hash: u64,
     pub client_hash: u64,
     pub public_key: u64,
     pub private_key: u64,
 }
 
 impl CachedData {
-    fn set_task_hash(&mut self, new_task_hash: u64) {
-        self.task_hash = new_task_hash;
-    }
     fn set_client_hash(&mut self, new_client_hash: u64) {
         self.client_hash = new_client_hash;
     }
@@ -74,7 +70,6 @@ impl CachedData {
 impl Default for CachedData {
     fn default() -> Self {
         Self {
-            task_hash: Default::default(),
             client_hash: Default::default(),
             public_key: Default::default(),
             private_key: Default::default(), 
@@ -90,23 +85,23 @@ pub struct SaveData {
 }
 
 impl SaveData {
-    fn set_task_path(&mut self, new_task_path: String) {
-        self.task_path = new_task_path;
-    }
-    fn set_task_type(&mut self, new_task_type: TaskType) {
+    pub fn set_task_type(&mut self, new_task_type: TaskType) {
         self.task_type = new_task_type;
     }
-    fn set_client_path(&mut self, new_client_path: String) {
-        self.client_path = new_client_path;
+    pub fn set_path(&mut self, ft: FileType, new_path: String) {
+        match ft {
+            FileType::Client => self.client_path = new_path,
+            FileType::Task => self.task_path = new_path,
+        };
     }
 }
 
 impl Default for SaveData {
     fn default() -> Self {
         Self {
-            task_path: String::from("./task/main.py"), 
+            task_path: String::new(), 
             task_type: Default::default(), 
-            client_path: String::from("./target/debug/server.exe"),  
+            client_path: String::from("./target/debug/client.exe"),  
         }
     }
 }
@@ -175,15 +170,16 @@ pub fn load_save_data() -> Result<SaveData, FileError> {
 }
 
 pub fn save_save_data(save_data: &SaveData) -> Result<(), FileError> {
-    let file = match File::open("./save.dat") {
+    let file = match File::options().write(true).open("./save.dat") {
         Ok(f) => f,
         Err(_e) => File::create("./save.dat")?,
     };
     let mut writer = BufWriter::new(file);
     writer.write_all(String::from(save_data).as_bytes())?;
+    writer.flush()?;
     Ok(())
 }
-
+// Platform specific hash function, will change to fxhash
 fn hash(item: &[u8]) -> u64 {
     let mut hasher = DefaultHasher::new();
     item.hash(&mut hasher);
@@ -198,28 +194,13 @@ pub fn get_bytes_of(path: &str) -> Result<Box<[u8]>, FileError> {
     Ok(data.into_boxed_slice())
 }
 
-pub fn get_hash_of(file: FileType, save_data: &SaveData/*, cached_data: &mut CachedData*/) -> Result<u64, FileError> {
-    
-    let file_hash = match file {
-        FileType::Task => { 
-            /*
-            if cached_data.task_hash != 0u64 {
-                cached_data.task_hash
-            } else {*/
-                let task_hash = hash(&get_bytes_of(&save_data.task_path)?);
-                //cached_data.set_task_hash(task_hash);
-                task_hash
-            //}
-        },
-        FileType::Client => {
-            /*if cached_data.client_hash != 0u64 {
-                cached_data.client_hash
-            } else {*/
-                let client_hash = hash(&get_bytes_of(&save_data.client_path)?);
-                //cached_data.client_hash = client_hash;
-                client_hash
-            //}
-        },
-    };
-    Ok(file_hash)
+pub fn get_hash_of(save_data: &SaveData/*, cached_data: &mut CachedData*/) -> Result<u64, FileError> {
+    //if cached_data.client_hash != 0u64 {
+    //    cached_data.client_hash
+    //} else {
+        let client_hash = hash(&get_bytes_of(&save_data.client_path)?);
+        //cached_data.client_hash = client_hash;
+        //client_hash
+    //}
+    Ok(client_hash)
 }

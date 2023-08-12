@@ -35,7 +35,6 @@ impl From<Error> for ClientError {
 
 fn update(reader:&mut BufReader<&TcpStream>, writer:&mut BufWriter<&TcpStream>, save_data:&mut SaveData) -> Result<(), ClientError> {
     let (code, path) = (2, &save_data.client_path);
-    println!("a {:?}", path);
 
     let l_hash = get_hash_of(save_data)?;
     send_data(writer, &[code])?;
@@ -75,7 +74,7 @@ fn main() -> Result<(), ClientError> {
     let mut reader = BufReader::new(&stream);
     let mut writer = BufWriter::new(&stream);
     
-    update(&mut reader, &mut writer, &mut save_data)?;
+    //update(&mut reader, &mut writer, &mut save_data)?;
 
     loop {
         if let Ok(recv) = recieve_data(&mut reader) {
