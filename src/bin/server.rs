@@ -45,7 +45,7 @@ fn serve_session(stream: TcpStream,  save_data: SaveData) -> Result<(), ServerEr
         
         match opcode {
             //1 => send_data(&mut writer, &get_bytes_of(&save_data.task_path)?)?,
-            255 => send_u64(&mut writer, get_hash_of(&save_data)?)?,
+            2 => send_u64(&mut writer, get_hash_of("./target/debug/client.exe")?)?,
             3 => send_data(&mut writer, &get_bytes_of(&save_data.client_path)?)?,
             4 => println!("stdout:{:?}", String::from_utf8(recieve_data(&mut reader)?.to_ascii_lowercase()).unwrap()),
             5 => println!("stderr:{:?}", String::from_utf8(recieve_data(&mut reader)?.to_ascii_lowercase()).unwrap()),

@@ -4,16 +4,14 @@ use std::io::Read;
 use std::ops::Deref;
 use std::str::Bytes;
 use std::thread::{self, JoinHandle};
-use std::process::{Command, Output};
+use std::process::{Command, Output, ExitCode};
 use std::net::Shutdown;
 use std::fs::File;
 
 mod netlib;
 use netlib::{Error, TcpStream, connect_to, recieve_u64, recieve_data, send_data};
 mod filelib;
-use filelib::{Write, BufReader, BufWriter, SaveData, FileError, FileType, get_hash_of, load_save_data};
-
-use crate::filelib::save_save_data;
+use filelib::{Write, BufReader, BufWriter, SaveData, FileError, FileType, get_hash_of, load_save_data, save_save_data};
 
 #[derive(Debug)]
 enum ClientError {
@@ -33,26 +31,21 @@ impl From<Error> for ClientError {
     }
 }
 
-fn update(reader:&mut BufReader<&TcpStream>, writer:&mut BufWriter<&TcpStream>, save_data:&mut SaveData) -> Result<(), ClientError> {
-    let (code, path) = (2, &save_data.client_path);
-
-    let l_hash = get_hash_of(save_data)?;
-    send_data(writer, &[code])?;
+fn update(reader:&mut BufReader<&TcpStream>, writer:&mut BufWriter<&TcpStream>) -> Result<bool, ClientError> {
+    let l_hash = get_hash_of("./target/debug/client.exe")?;
+    send_data(writer, &[2])?;
     let r_hash = recieve_u64(reader)?;
     if l_hash == r_hash {
-        return Ok(());
+        return Ok(false);
     }
 
-    send_data(writer, &[code + 1])?;
+    send_data(writer, &[3])?;
     let new = recieve_data(reader)?;
     println!("{}", String::from_utf8(new.to_ascii_lowercase()).unwrap()); //dbg
-    let mut file = match File::options().write(true).open(dbg!(&save_data.task_path)) { //save_data.get_path(ft)
-        Ok(f) => f,
-        Err(_e) => File::create(&save_data.task_path)?,
-    };
+    let mut file = File::options().create(true).truncate(true).write(true).open(dbg!("./target/debug/new_client.exe"))?;
     file.write_all(&new)?;
     file.flush()?;
-    Ok(())
+    Ok(true)
 }
 
 fn run_task() -> JoinHandle<Result<Output, ClientError>> {
@@ -67,14 +60,25 @@ fn run_task() -> JoinHandle<Result<Output, ClientError>> {
     })
 }
 
-fn main() -> Result<(), ClientError> {
-    let mut save_data = load_save_data()?;
+fn main() -> ExitCode {
+    println!("I am client!");
+    //let mut save_data = load_save_data()?;  // used to store masterIp, publicKey, privateKey, ...
 
-    let stream = connect_to("127.0.0.1:1337")?;
+    // next line panics with exit code 101
+    let stream = connect_to("127.0.0.1:1337").unwrap();  // will change to bruteforcing master ip
     let mut reader = BufReader::new(&stream);
     let mut writer = BufWriter::new(&stream);
     
-    //update(&mut reader, &mut writer, &mut save_data)?;
+    if let Ok(is_ready) = update(&mut reader, &mut writer) {
+        if is_ready {
+            println!("Asking shell to update client");
+            return ExitCode::from(2);  // Try to update
+        } else {
+            println!("Client is up to date!");
+        }
+    } else {
+        //return ExitCode::from(3) // ???? it would be nice to return err(), so that error is displayed in 
+    }                            // stdout by eprintln! but on the other hand I still need to ask shell to update
 
     loop {
         if let Ok(recv) = recieve_data(&mut reader) {
@@ -90,8 +94,8 @@ fn main() -> Result<(), ClientError> {
     // send_data(&mut writer, &dbg!(output.stderr))?;
 
     stream.shutdown(Shutdown::Both).expect("Failed to close connection to remote");
-    save_save_data(&save_data)?;
+    //save_save_data(&save_data)?;
     
     println!("Everything is done!");
-    Ok(())
+    ExitCode::SUCCESS
 }

@@ -194,11 +194,11 @@ pub fn get_bytes_of(path: &str) -> Result<Box<[u8]>, FileError> {
     Ok(data.into_boxed_slice())
 }
 
-pub fn get_hash_of(save_data: &SaveData/*, cached_data: &mut CachedData*/) -> Result<u64, FileError> {
+pub fn get_hash_of(path: &str/*, cached_data: &mut CachedData*/) -> Result<u64, FileError> {
     //if cached_data.client_hash != 0u64 {
     //    cached_data.client_hash
     //} else {
-        let client_hash = hash(&get_bytes_of(&save_data.client_path)?);
+        let client_hash = hash(&get_bytes_of(path)?);
         //cached_data.client_hash = client_hash;
         //client_hash
     //}
