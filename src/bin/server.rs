@@ -3,7 +3,7 @@
 use std::thread;
 
 mod netlib;
-use netlib::{Error, TcpStream, start_listener, recieve_data, send_u64, send_data};
+use netlib::{Error, TcpStream, start_listener, send_u64, recieve_u64, send_data, recieve_data};
 mod filelib;
 use filelib::{BufReader, BufWriter,SaveData, FileError, FileType, get_bytes_of, get_hash_of, load_save_data};
 
@@ -33,6 +33,8 @@ fn serve_session(stream: TcpStream,  save_data: SaveData) -> Result<(), ServerEr
 
     let serving = true;
     while serving {
+        let rx = recieve_u64(&mut reader)?;
+        /*
         let rx = recieve_data(&mut reader)?;
         if rx.len() != 1 {
             Err(ServerError::ProtocolError(
@@ -40,15 +42,16 @@ fn serve_session(stream: TcpStream,  save_data: SaveData) -> Result<(), ServerEr
             ))?;
         }
         let opcode = rx[0];
+        */
+
+        println!("got cmd from a [{:?}]: {:?}", stream.peer_addr().unwrap() , rx); //dbg
         
-        println!("got cmd from a [{:?}]: {:?}", stream.peer_addr().unwrap() , opcode); //dbg
-        
-        match opcode {
+        match rx {
             //1 => send_data(&mut writer, &get_bytes_of(&save_data.task_path)?)?,
             2 => send_u64(&mut writer, get_hash_of("./target/debug/client.exe")?)?,
-            3 => send_data(&mut writer, &get_bytes_of(&save_data.client_path)?)?,
-            4 => println!("stdout:{:?}", String::from_utf8(recieve_data(&mut reader)?.to_ascii_lowercase()).unwrap()),
-            5 => println!("stderr:{:?}", String::from_utf8(recieve_data(&mut reader)?.to_ascii_lowercase()).unwrap()),
+            //3 => send_data(&mut writer, &get_bytes_of(&save_data.client_path)?)?,
+            //4 => println!("stdout:{:?}", String::from_utf8(recieve_data(&mut reader)?.to_ascii_lowercase()).unwrap()),
+            //5 => println!("stderr:{:?}", String::from_utf8(recieve_data(&mut reader)?.to_ascii_lowercase()).unwrap()),
             _ => {
                 Err(ServerError::ProtocolError(
                     "Client violated protocol".to_owned(),
@@ -68,18 +71,14 @@ fn main() -> Result<(), ServerError> {
     let save_data = load_save_data()?;
     let mut handles = vec!();
     let listener = start_listener("127.0.0.1:1337")?;
-    let mut running = true;
     
-
-    while running {
-        let connection = listener.accept();
+    for connection in listener.incoming(){
         let thread_save_data = save_data.clone();
         handles.push(thread::spawn(|| {
-            let (stream, addr) = connection?;
-            println!("Serving {addr}");
+            let stream = connection?;
+            println!("Serving {}", stream.peer_addr().unwrap());
             serve_session(stream, thread_save_data)
         }));
-        running = false;
     }
 
     for handle in handles.into_iter() {

@@ -1,6 +1,8 @@
+extern crate fxhash;
+
+pub use fxhash::hash64;
 use std::collections::hash_map::{DefaultHasher, HashMap};
 //use std::default;
-use std::hash::{Hash, Hasher};
 pub use std::io::{Read, Write, BufRead, BufReader, BufWriter, Error};
 use std::fs::File;
 use std::fmt::Display;
@@ -150,7 +152,6 @@ pub fn load_save_data() -> Result<SaveData, FileError> {
             return Ok(def_save_data);
         },
     };
-    
     let reader = BufReader::new(save_file);
     let mut raw_save_data = HashMap::new();
     
@@ -179,12 +180,6 @@ pub fn save_save_data(save_data: &SaveData) -> Result<(), FileError> {
     writer.flush()?;
     Ok(())
 }
-// Platform specific hash function, will change to fxhash
-fn hash(item: &[u8]) -> u64 {
-    let mut hasher = DefaultHasher::new();
-    item.hash(&mut hasher);
-    hasher.finish()
-}
 
 pub fn get_bytes_of(path: &str) -> Result<Box<[u8]>, FileError> {
     let file = File::open(path)?;
@@ -198,7 +193,7 @@ pub fn get_hash_of(path: &str/*, cached_data: &mut CachedData*/) -> Result<u64, 
     //if cached_data.client_hash != 0u64 {
     //    cached_data.client_hash
     //} else {
-        let client_hash = hash(&get_bytes_of(path)?);
+        let client_hash = hash64(&get_bytes_of(path)?);
         //cached_data.client_hash = client_hash;
         //client_hash
     //}
