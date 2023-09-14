@@ -89,11 +89,12 @@ fn main() -> ExitCode {
     };
 
     // Template client loop
-    let recv_buf: Vec<u8> = vec![];
-    let mut recv_writer = BufWriter::new(recv_buf.clone());
-    loop {
+    loop {    
+        let recv_buf: Vec<u8> = vec![];
+        let mut recv_writer = BufWriter::new(recv_buf);
         recieve_data(&mut reader, &mut recv_writer).unwrap();
-        println!("{:?}", recv_buf);
+        println!("{:?}", &recv_writer.into_inner().unwrap());
+        println!("a");
     };
     
     // let output = run_task().join().unwrap()?;

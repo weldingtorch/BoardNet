@@ -1,11 +1,11 @@
 // Server (task/client distributor)
 
-use std::thread;
+use std::{thread::{self, JoinHandle}, sync::mpsc::{channel, Receiver}, time::Duration};
 
 mod netlib;
 use netlib::{Error, TcpStream, start_listener, send_u64, recieve_u64, send_data, recieve_data};
 mod filelib;
-use filelib::{BufReader, BufWriter,SaveData, FileError, FileType, get_bytes_of, get_hash_of, load_save_data};
+use filelib::{BufReader, BufWriter,SaveData, FileError, get_hash_of, load_save_data};
 
 
 #[derive(Debug)]
@@ -27,22 +27,16 @@ impl From<Error> for ServerError {
     }
 }
 
-fn serve_session(stream: TcpStream,  save_data: SaveData) -> Result<(), ServerError> {
+//fn serve_session(stream: TcpStream,  save_data: SaveData) -> Result<(), ServerError> {
+fn serve_session(stream: TcpStream) -> Result<(), ServerError> {
     let mut reader = BufReader::new(&stream);
     let mut writer = BufWriter::new(&stream);
-
+    
     let serving = true;
+    println!("Serving {}", stream.peer_addr().unwrap());
+
     while serving {
         let rx = recieve_u64(&mut reader)?;
-        /*
-        let rx = recieve_data(&mut reader)?;
-        if rx.len() != 1 {
-            Err(ServerError::ProtocolError(
-                "Client violated protocol".to_owned(),
-            ))?;
-        }
-        let opcode = rx[0];
-        */
 
         println!("got cmd from a [{:?}]: {:?}", stream.peer_addr().unwrap() , rx); //dbg
         
@@ -60,32 +54,45 @@ fn serve_session(stream: TcpStream,  save_data: SaveData) -> Result<(), ServerEr
         };
     }
 
-    //let task_file = File::open("./task/main.py").expect("Failed to open task file")
-    //let task_buffer = task_file.read(&mut buffer).unwrap();
-    //stream.write(task_file);
-    //println!("Succesfully established connection: {stream:?}");
+    Ok(())
+}
+
+fn thread_collector(rx: Receiver<JoinHandle<Result<(), ServerError>>>) -> Result<(), ServerError>{
+    let mut handles = vec![];
+    while !handles.is_empty() {
+        if let Ok(handle) = rx.recv_timeout(Duration::from_millis(500)) {
+            handles.push(handle);
+        }
+
+        for i in handles.len()..0 {
+            if handles[i-1].is_finished() {
+                handles.swap_remove(i-1).join().unwrap()?; // TODO thread communication on completion to get latest savedata
+            }
+        }
+    }
     Ok(())
 }
 
 fn main() -> Result<(), ServerError> {
-    let save_data = load_save_data()?;
-    let mut handles = vec!();
+    //let save_data = load_save_data()?;
     let listener = start_listener("127.0.0.1:1337")?;
-    
-    for connection in listener.incoming(){
-        let thread_save_data = save_data.clone();
-        handles.push(thread::spawn(|| {
-            let stream = connection?;
-            println!("Serving {}", stream.peer_addr().unwrap());
-            serve_session(stream, thread_save_data)
-        }));
+
+    let (tx, rx) = channel();
+    let collector = thread::spawn( || {
+        thread_collector(rx).unwrap();
+    });
+
+    for stream in listener.incoming(){
+        //let thread_save_data = save_data.clone();
+        tx.send(
+            thread::spawn(|| {
+                serve_session(stream?)
+                //serve_session(stream?, thread_save_data)
+            })
+        ).unwrap();
     }
 
-    for handle in handles.into_iter() {
-        if !handle.is_finished() {
-            handle.join().unwrap().unwrap(); // TODO thread communication on completion to get latest savedata
-        }
-    }
+    collector.join().unwrap();   
 
     Ok(())
 }
