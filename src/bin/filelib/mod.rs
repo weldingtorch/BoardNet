@@ -28,24 +28,33 @@ impl From<ParseIntError> for FileError {
     }
 }
 
-pub enum FileType {
-    Task,
-    Client,
+#[derive(Debug, Clone)]
+pub struct Task {
+    pub id: u32,
+    pub shell: String,
+    pub attachment: Option<Attachment>,
+    
 }
 
-#[derive(Default, Debug, Clone, Copy)]
-pub enum TaskType {
-    #[default] Python,
-    Executable,
-    Archive,
+#[derive(Debug, Clone)]
+pub struct Attachment {
+    attachment_type: AttachmentType,
+    filename: String,
+    file: String,
 }
 
-impl Display for TaskType {
+#[derive(Default, Debug, Clone)]
+pub enum AttachmentType {
+    #[default] Raw,
+    TarArchive,
+    // May add other comperssion types
+}
+
+impl Display for AttachmentType {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(f, "{}", match self{
-            TaskType::Python => "py",
-            TaskType::Executable => "exe",
-            TaskType::Archive => "tar",
+            AttachmentType::Raw => "Raw",
+            AttachmentType::TarArchive => "TarArchive",
         })
     }
 }
@@ -79,13 +88,17 @@ impl Default for CachedData {
     }
 }
 */
+
+
+
+/*
 #[derive(Debug, Clone)]
 pub struct SaveData {
     pub task_path: String,
     pub task_type: TaskType,
     pub client_path: String,
 }
-
+ 
 impl SaveData {
     pub fn set_task_type(&mut self, new_task_type: TaskType) {
         self.task_type = new_task_type;
@@ -180,6 +193,7 @@ pub fn save_save_data(save_data: &SaveData) -> Result<(), FileError> {
     writer.flush()?;
     Ok(())
 }
+*/
 
 pub fn get_bytes_of(path: &str) -> Result<Box<[u8]>, FileError> {
     let file = File::open(path)?;
