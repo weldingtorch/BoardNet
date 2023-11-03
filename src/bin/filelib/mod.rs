@@ -36,6 +36,15 @@ pub struct Task {
     
 }
 
+impl Task {
+    pub fn as_bytes(&self) -> Box<[u8]> {
+        let id_bytes = self.id.to_be_bytes();
+        let shell_bytes = self.shell.as_bytes();
+        let attachment_bytes = self.attachment.as_ref().unwrap().as_bytes(); // NOTE: total garbage, use serde
+        [id_bytes.as_slice(), shell_bytes, &attachment_bytes].concat().into_boxed_slice()
+    }
+}
+
 #[derive(Debug, Clone)]
 pub struct Attachment {
     attachment_type: AttachmentType,
@@ -43,7 +52,16 @@ pub struct Attachment {
     file: String,
 }
 
-#[derive(Default, Debug, Clone)]
+impl Attachment {
+    fn as_bytes(&self) -> Box<[u8]> {
+        let filename_bytes = self.filename.as_bytes();
+        let file_bytes = self.file.as_bytes();
+        let attachment_type_bytes = (self.attachment_type as u8).to_be_bytes();
+        [filename_bytes, file_bytes, attachment_type_bytes.as_slice()].concat().into_boxed_slice()
+    }
+}
+
+#[derive(Default, Debug, Clone, Copy)]
 pub enum AttachmentType {
     #[default] Raw,
     TarArchive,
@@ -194,10 +212,14 @@ pub fn save_save_data(save_data: &SaveData) -> Result<(), FileError> {
     Ok(())
 }
 */
-
-pub fn get_bytes_of(path: &str) -> Result<Box<[u8]>, FileError> {
+pub fn get_bytes_of(path: &str) -> Result<(BufReader<File>, u64), FileError>{
     let file = File::open(path)?;
-    let mut reader = BufReader::new(file);
+    let length = file.metadata()?.len();
+    Ok((BufReader::new(file), length))
+}
+
+fn get_unbuffered_bytes_of(path: &str) -> Result<Box<[u8]>, FileError> {
+    let mut reader = get_bytes_of(path)?.0;
     let mut data = vec![];
     reader.read_to_end(&mut data)?;
     Ok(data.into_boxed_slice())
@@ -207,9 +229,9 @@ pub fn get_hash_of(path: &str/*, cached_data: &mut CachedData*/) -> Result<u64, 
     //if cached_data.client_hash != 0u64 {
     //    cached_data.client_hash
     //} else {
-        let client_hash = hash64(&get_bytes_of(path)?);
+        let client_hash = hash64(&get_unbuffered_bytes_of(path)?);
         //cached_data.client_hash = client_hash;
-        //client_hash
+        //client_hash 
     //}
     Ok(client_hash)
 }

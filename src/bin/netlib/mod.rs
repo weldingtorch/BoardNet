@@ -11,7 +11,7 @@ pub fn connect_to(addr: impl ToSocketAddrs) -> Result<TcpStream, Error> {
     Ok(TcpStream::connect(addr)?)
 }
 
-fn write_to_buf(from: &mut BufReader<impl Read>, to: &mut BufWriter<impl Write>, length: u64) -> Result<(), Error> {
+pub fn write_to_buf(from: &mut BufReader<impl Read>, to: &mut BufWriter<impl Write>, length: u64) -> Result<(), Error> {
     let mut buf = [0u8]; // one-byte buffer may be slow TODO: check how to copy buf to buf
     for _ in 0..length {
         from.read_exact(&mut buf)?;

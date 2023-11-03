@@ -1,12 +1,14 @@
 // Server (task/client distributor)
 
-use std::{thread::{self, JoinHandle}, sync::{mpsc::{channel, Receiver, Sender}, Arc, RwLock}, time::Duration, collections::HashMap};
+use std::{thread::{self, JoinHandle}, sync::{mpsc::{channel, Receiver, Sender}, Arc, RwLock}, time::Duration, collections::HashMap, io::Write};
 use queues::{Buffer, IsQueue};
 
 mod netlib;
 use netlib::{Error, TcpStream, start_listener, send_u64, recieve_u64, send_data, recieve_data};
 mod filelib;
-use filelib::{BufReader, BufWriter, FileError, get_hash_of, Task};
+use filelib::{BufReader, BufWriter, Task, FileError,  get_bytes_of, get_hash_of};
+
+use crate::netlib::write_to_buf;
 
 
 const CLIENT_PATH: &str = "./target/debug/client.exe";
@@ -30,7 +32,6 @@ impl From<Error> for ServerError {
     }
 }
 
-//fn serve_session(stream: TcpStream,  save_data: SaveData) -> Result<(), ServerError> {
 fn serve_session(rx: Receiver<Task>, stream: TcpStream, man_tx: Sender<ManagerEvent>) -> Result<(), ServerError> {
     let mut reader = BufReader::new(&stream);
     let mut writer = BufWriter::new(&stream);
@@ -38,13 +39,18 @@ fn serve_session(rx: Receiver<Task>, stream: TcpStream, man_tx: Sender<ManagerEv
     let serving = true;
     println!("Serving {}", stream.peer_addr().unwrap());
 
-    // one-time update sequence
-    let rx = recieve_u64(&mut reader)?;
+    // client-chosen communication mode
+    let mode = recieve_u64(&mut reader)?;
     
-    match rx {
-        //1 => send_data(&mut writer, &get_bytes_of(&save_data.task_path)?)?,
-        2 => send_u64(&mut writer, get_hash_of(CLIENT_PATH)?)?,  // can be cached
-        //3 => send_data(&mut writer, &get_bytes_of(&save_data.client_path)?)?,
+    match mode {
+        1 => {writer.write(&rx.recv().expect("Manager is dead").as_bytes())?;}, // ready for new task
+        2 => send_u64(&mut writer, get_hash_of(CLIENT_PATH)?)?,  // launch update sequence // NOTE: can be cached
+        /* what I expect to happen inside 2
+        3 => {
+            let mut payload = get_bytes_of(CLIENT_PATH)?;
+            write_to_buf(&mut payload.0, &mut writer, payload.1)?}
+            , // wtf?
+        */
         //4 => println!("stdout:{:?}", String::from_utf8(recieve_data(&mut reader)?.to_ascii_lowercase()).unwrap()),
         //5 => println!("stderr:{:?}", String::from_utf8(recieve_data(&mut reader)?.to_ascii_lowercase()).unwrap()),
         _ => {
@@ -89,7 +95,7 @@ fn thread_collector(rx: Receiver<Option<JoinHandle<Result<(), ServerError>>>>){
             }
         }
 
-        for i in handles.len()..0 {
+        for i in (0..handles.len()).rev() {
             if handles[i-1].is_finished() {
                 if let Err(e) = handles.swap_remove(i-1).join().unwrap() {
                     println!("Client thread finished with error: {:?}", e);
@@ -101,10 +107,15 @@ fn thread_collector(rx: Receiver<Option<JoinHandle<Result<(), ServerError>>>>){
 
 
 struct Worker {
-    is_free: bool,
     id: u8,
+    is_free: bool,
 }
 
+impl Worker {
+    fn new(id: u8) -> Worker {
+        Worker {id, is_free: true}
+    }
+}
 
 enum ManagerEvent {
     NewTask(Task),
@@ -128,28 +139,28 @@ fn task_manager(rx: Receiver<ManagerEvent>, workers: Arc<RwLock<Vec<Worker>>>) {
                 if pending.size() < pending.capacity() {
                     pending.add(task).unwrap();
                 } else {
-                    // Cancel task or push back to rx?
+                    // TODO: Cancel task or push back to rx?
                 }
             }
             
             ManagerEvent::NewWorker(tx) => {
                 // Construct new worker and add it to workers
                 max_id += 1;
-                let new_worker = Worker {
-                    is_free: true,
-                    id: max_id,
-                };
+                let new_worker = Worker::new(max_id);
                 workers.write().unwrap().push(new_worker);
                 senders.insert(max_id, tx);
                 // Add new worker to workers
             }
 
             ManagerEvent::WorkerMessage() => {
-
+                // TODO: implement
+                // success -> finish task
+                // fail -> retry task?
             }
 
             ManagerEvent::Stop => {
-
+                // TODO: implement
+                // break?
             }
         };
 
@@ -178,6 +189,7 @@ fn task_manager(rx: Receiver<ManagerEvent>, workers: Arc<RwLock<Vec<Worker>>>) {
 }
 
 fn web_server(workers: Arc<RwLock<Vec<Worker>>>, man_tx: Sender<ManagerEvent>) {
+    // TODO: call a function from web/mod.rs to start web server
 }
 
 
@@ -206,6 +218,7 @@ fn main() -> Result<(), ServerError> {
         })
     };
     
+    // NOTE: Check if I still need it when working out graceful shutdown
     let (col_tx, col_rx) = channel();
     let collector = thread::spawn( || {
         thread_collector(col_rx);
@@ -213,13 +226,12 @@ fn main() -> Result<(), ServerError> {
 
     
     for stream in listener.incoming(){
-        //let thread_save_data = save_data.clone();
+        // NOTE: Can create too many threads. Maybe try switching to thread pools or async?
         let (tx, rx) = channel::<Task>();
         let c_man_tx = man_tx.clone();
 
         let handle = thread::spawn(|| {
             serve_session(rx, stream?, c_man_tx)
-            //serve_session(stream?, thread_save_data)
         });
         
         col_tx.send(Some(handle)).expect("Collector is dead 💀");
