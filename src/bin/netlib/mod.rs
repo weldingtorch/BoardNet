@@ -12,7 +12,7 @@ pub fn connect_to(addr: impl ToSocketAddrs) -> Result<TcpStream, Error> {
 }
 
 pub fn write_to_buf(from: &mut BufReader<impl Read>, to: &mut BufWriter<impl Write>, length: u64) -> Result<(), Error> {
-    let mut buf = [0u8]; // one-byte buffer may be slow TODO: check how to copy buf to buf
+    let mut buf = [0u8]; // one-byte buffer is slow TODO: keep reading & writing until length exceeded
     for _ in 0..length {
         from.read_exact(&mut buf)?;
         to.write_all(&buf)?;
@@ -35,14 +35,32 @@ pub fn recieve_u64(stream: &mut BufReader<&TcpStream>) -> Result<u64, Error> {
     Ok(u64::from_be_bytes(buf))
 }
 
-pub fn send_data(stream: &mut BufWriter<&TcpStream>, source: &mut BufReader<impl Read>, length: u64) -> Result<(), Error> {
+pub fn send_data(stream: &mut BufWriter<&TcpStream>, data: &[u8]) -> Result<(), Error> {
+    let length = data.len().try_into().unwrap();  // Assume we run this on >=64-bit OS
+    send_u64(stream, length)?;
+    println!("Sending data. Size: {}B", length);
+    stream.write_all(data)?;
+    stream.flush()?;
+    Ok(())
+}
+
+pub fn recieve_data(stream: &mut BufReader<&TcpStream>) -> Result<Vec<u8>, Error> {
+    // TODO: refactor?
+    let length = recieve_u64(stream)?.try_into().unwrap(); // Assume we run this on >=64-bit OS
+    let mut buf: Vec<u8> = vec![0; length];
+    println!("Recieving data. Size: {}B", length);
+    stream.read_exact(&mut buf)?;
+    Ok(buf)
+}
+
+pub fn send_data_buffered(stream: &mut BufWriter<&TcpStream>, source: &mut BufReader<impl Read>, length: u64) -> Result<(), Error> {
     send_u64(stream, length)?;
     println!("Sending data. Size: {}B", length);
     write_to_buf(source, stream, length)?;
     Ok(())
 }
 
-pub fn recieve_data(stream: &mut BufReader<&TcpStream>, destination: &mut BufWriter<impl Write>) -> Result<(), Error> {
+pub fn recieve_data_buffered(stream: &mut BufReader<&TcpStream>, destination: &mut BufWriter<impl Write>) -> Result<(), Error> {
     let length = recieve_u64(stream)?;
     println!("Recieving data. Size: {}B", length);
     write_to_buf(stream, destination, length)?;

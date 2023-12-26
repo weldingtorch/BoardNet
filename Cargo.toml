@@ -8,3 +8,5 @@ edition = "2021"
 [dependencies]
 fxhash = "0.2.1"
 queues = "1.0.2"
+serde = {version = "1.0.190", features = ["derive"]}
+ciborium = "0.2.1"

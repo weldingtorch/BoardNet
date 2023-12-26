@@ -1,19 +1,17 @@
 extern crate fxhash;
 
+use serde::{Serialize, Deserialize};
 pub use fxhash::hash64;
-use std::collections::hash_map::{DefaultHasher, HashMap};
-//use std::default;
 pub use std::io::{Read, Write, BufRead, BufReader, BufWriter, Error};
-use std::fs::File;
+pub use std::fs::File;
 use std::fmt::Display;
 use std::num::ParseIntError;
-
 
 #[derive(Debug)]
 pub enum FileError {
     IO(Error),
     ParseInt(ParseIntError),
-    UnknownTaskType(String),
+    //UnknownTaskType(String),
 }
 
 impl From<Error> for FileError {
@@ -28,40 +26,25 @@ impl From<ParseIntError> for FileError {
     }
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Task {
     pub id: u32,
     pub shell: String,
     pub attachment: Option<Attachment>,
-    
+    pub timeout: u16, // NOTE: 0 for unlimited exeution time
 }
 
-impl Task {
-    pub fn as_bytes(&self) -> Box<[u8]> {
-        let id_bytes = self.id.to_be_bytes();
-        let shell_bytes = self.shell.as_bytes();
-        let attachment_bytes = self.attachment.as_ref().unwrap().as_bytes(); // NOTE: total garbage, use serde
-        [id_bytes.as_slice(), shell_bytes, &attachment_bytes].concat().into_boxed_slice()
-    }
-}
-
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Attachment {
-    attachment_type: AttachmentType,
-    filename: String,
-    file: String,
+    pub size: u64,
+    pub attachment_type: AttachmentType,
+    pub retain_attachment: bool,
+    pub filename: String,
+    // NOTE: file itself is stored in fs under task id filename
+    // ./attachments/{task.id} 
 }
 
-impl Attachment {
-    fn as_bytes(&self) -> Box<[u8]> {
-        let filename_bytes = self.filename.as_bytes();
-        let file_bytes = self.file.as_bytes();
-        let attachment_type_bytes = (self.attachment_type as u8).to_be_bytes();
-        [filename_bytes, file_bytes, attachment_type_bytes.as_slice()].concat().into_boxed_slice()
-    }
-}
-
-#[derive(Default, Debug, Clone, Copy)]
+#[derive(Default, Debug, Clone, Serialize, Deserialize)]
 pub enum AttachmentType {
     #[default] Raw,
     TarArchive,
@@ -76,6 +59,16 @@ impl Display for AttachmentType {
         })
     }
 }
+
+#[derive(Serialize, Deserialize)]
+pub struct TaskOutput {
+    pub task_id: u32,
+    pub code: Option<i32>,
+    pub stdout: Vec<u8>,
+    pub stderr: Vec<u8>,
+}
+
+
 /*
 #[derive(Debug, Clone, Copy)]
 pub struct CachedData {
