@@ -1,9 +1,5 @@
-extern crate fxhash;
-
 use serde::{Serialize, Deserialize};
-pub use fxhash::hash64;
-pub use std::io::{Read, Write, BufRead, BufReader, BufWriter, Error};
-pub use std::fs::File;
+use std::io::Error;
 use std::fmt::Display;
 use std::num::ParseIntError;
 
@@ -205,26 +201,4 @@ pub fn save_save_data(save_data: &SaveData) -> Result<(), FileError> {
     Ok(())
 }
 */
-pub fn get_bytes_of(path: &str) -> Result<(BufReader<File>, u64), FileError>{
-    let file = File::open(path)?;
-    let length = file.metadata()?.len();
-    Ok((BufReader::new(file), length))
-}
 
-fn get_unbuffered_bytes_of(path: &str) -> Result<Box<[u8]>, FileError> {
-    let mut reader = get_bytes_of(path)?.0;
-    let mut data = vec![];
-    reader.read_to_end(&mut data)?;
-    Ok(data.into_boxed_slice())
-}
-
-pub fn get_hash_of(path: &str/*, cached_data: &mut CachedData*/) -> Result<u64, FileError> {
-    //if cached_data.client_hash != 0u64 {
-    //    cached_data.client_hash
-    //} else {
-        let client_hash = hash64(&get_unbuffered_bytes_of(path)?);
-        //cached_data.client_hash = client_hash;
-        //client_hash 
-    //}
-    Ok(client_hash)
-}

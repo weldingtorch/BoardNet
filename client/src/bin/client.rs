@@ -1,17 +1,20 @@
-// Client task manager/executer 
+// Client task manager/executer
 
+extern crate cluster;
+
+//mod cluster::ioutils;
+//mod filelib;
+
+use std::io::{prelude::*, BufReader, BufWriter, Error};
 use std::thread;
 use std::process::{Command, Output, ExitCode};
 use std::net::Shutdown;
 use std::fs::File;
 
-mod netlib;
-use netlib::{Error, TcpStream, connect_to, send_u64, recieve_u64, recieve_data_buffered};
-mod filelib;
-use filelib::{BufReader, BufWriter, FileError, get_hash_of, AttachmentType};
 
-use crate::filelib::{Task, TaskOutput, Write};
-use crate::netlib::{recieve_data, send_data};
+use cluster::ioutils::{TcpStream, connect_to, send_u64, recieve_u64, recieve_data, send_data, recieve_data_buffered, get_hash_of};
+use cluster::filelib::{FileError, Task, TaskOutput, AttachmentType};
+
 use ciborium::{ser, de};
 
 const CLIENT_PATH: &str = "./target/debug/client.exe";

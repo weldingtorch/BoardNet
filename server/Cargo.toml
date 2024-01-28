@@ -1,17 +1,12 @@
 [package]
-name = "cluster"
+name = "server"
 version = "0.2.0"
 edition = "2021"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-fxhash = "0.2.1"
-queues = "1.0.2"
-serde = {version = "1.0.190", features = ["derive"]}
+cluster = {path = ".."}
 ciborium = "0.2.1"
 rocket = "=0.5.0-rc.4"
-mysql = "24.0.0"
-
-[workspace]
-members = [".", "client", "server"]
+queues = "1.0.2"

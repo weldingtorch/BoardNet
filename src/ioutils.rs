@@ -1,6 +1,12 @@
-pub use std::io::{BufReader, BufWriter, Error};
+extern crate fxhash;
+
+use std::io::{BufReader, BufWriter, Error};
 use std::io::prelude::*;
-pub use std::net::{TcpStream, TcpListener, ToSocketAddrs, Shutdown};
+pub use std::fs::File;
+pub use fxhash::hash64;
+
+
+pub use std::net::{TcpStream, TcpListener, ToSocketAddrs, Ipv4Addr, Shutdown};
 
 
 pub fn start_listener(addr: impl ToSocketAddrs) -> Result<TcpListener, Error> {
@@ -9,6 +15,16 @@ pub fn start_listener(addr: impl ToSocketAddrs) -> Result<TcpListener, Error> {
 
 pub fn connect_to(addr: impl ToSocketAddrs) -> Result<TcpStream, Error> {
     Ok(TcpStream::connect(addr)?)
+}
+
+pub fn discover_master_ip(worker_addr: Ipv4Addr) {
+    // TODO: brute force ip
+    let octs = &worker_addr.octets()[0..3];
+    let pool = (0..255).map(|x| (Ipv4Addr::new(octs[0], octs[1], octs[2], x), 1337));
+    for addr in pool {
+        let stream = TcpStream::connect(addr);
+    }
+    todo!();
 }
 
 pub fn write_to_buf(from: &mut BufReader<impl Read>, to: &mut BufWriter<impl Write>, length: u64) -> Result<(), Error> {
@@ -65,4 +81,28 @@ pub fn recieve_data_buffered(stream: &mut BufReader<&TcpStream>, destination: &m
     println!("Recieving data. Size: {}B", length);
     write_to_buf(stream, destination, length)?;
     Ok(())
+}
+
+pub fn get_bytes_of(path: &str) -> Result<(BufReader<File>, u64), Error>{
+    let file = File::open(path)?;
+    let length = file.metadata()?.len();
+    Ok((BufReader::new(file), length))
+}
+
+fn get_unbuffered_bytes_of(path: &str) -> Result<Box<[u8]>, Error> {
+    let mut reader = get_bytes_of(path)?.0;
+    let mut data = vec![];
+    reader.read_to_end(&mut data)?;
+    Ok(data.into_boxed_slice())
+}
+
+pub fn get_hash_of(path: &str/*, cached_data: &mut CachedData*/) -> Result<u64, Error> {
+    //if cached_data.client_hash != 0u64 {
+    //    cached_data.client_hash
+    //} else {
+        let client_hash = hash64(&get_unbuffered_bytes_of(path)?);
+        //cached_data.client_hash = client_hash;
+        //client_hash 
+    //}
+    Ok(client_hash)
 }

@@ -1,5 +1,4 @@
-use std::{sync::{Arc, RwLock}, collections::HashMap};
-
+//use std::{sync::{Arc, RwLock}, collections::HashMap};
 use rocket::response::Redirect;
 
 
@@ -42,10 +41,10 @@ fn cancel_task(task_id: u32) -> Redirect {
 }
 
 #[rocket::main]
-pub async fn start_web_server(workers: Arc<RwLock<HashMap<u8, crate::Worker>>>) -> Result<(), rocket::Error> {
+pub async fn start_web_server() -> Result<(), rocket::Error> {
     rocket::build()
         .mount("/", routes![index, add_task, task_status, cancel_task])
-        .manage(workers)
+        //.manage(workers)
         .launch()
         .await?;
 

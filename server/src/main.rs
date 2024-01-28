@@ -1,18 +1,21 @@
 // Server (task/client distributor)
 
-use std::{thread::{self, JoinHandle}, sync::{mpsc::{channel, Receiver, Sender}, Arc, RwLock}};
-use queues::{Buffer, IsQueue};
-use std::time::Duration;
+extern crate cluster;
+
+
 use std::collections::HashMap;
-use std::io::ErrorKind;
+use std::fs::File;
+use std::io::{BufReader, BufWriter, Error, ErrorKind};
+use std::thread::{self, JoinHandle};
+use std::time::Duration;
+use std::sync::{Arc, RwLock, mpsc::{channel, Receiver, Sender}};
+
+use cluster::ioutils::{TcpStream, start_listener, send_u64, recieve_u64, send_data, recieve_data, send_data_buffered, get_bytes_of, get_hash_of};
+use cluster::filelib::{Task, TaskOutput, FileError};
+use cluster::web::start_web_server;
+
 use ciborium::{ser, de};
-
-mod netlib;
-use netlib::{Error, TcpStream, start_listener, send_u64, recieve_u64, send_data_buffered};
-mod filelib;
-use filelib::{BufReader, BufWriter, Task, TaskOutput, File, FileError,  get_bytes_of, get_hash_of};
-
-use crate::netlib::{send_data, recieve_data};
+use queues::{Buffer, IsQueue};
 
 
 const CLIENT_PATH: &str = "./target/debug/client.exe";
@@ -253,9 +256,6 @@ fn offer_tasks(rx: Receiver<Task>, stream: &TcpStream, mng_tx: Sender<ManagerEve
 }
 
 fn web_server(workers: Arc<RwLock<HashMap<u8, Worker>>>, mng_tx: Sender<ManagerEvent>) {
-    
-    let read_lock = workers.read().unwrap();
-    println!("[web] Workers status: {:?}", read_lock.iter());
 
     let test_task = Task {
         id: 0,
@@ -269,8 +269,8 @@ fn web_server(workers: Arc<RwLock<HashMap<u8, Worker>>>, mng_tx: Sender<ManagerE
     // TODO: call a function from web/mod.rs to start web server
 }
 
-
 fn main() -> Result<(), ServerError> {
+
     //let save_data = load_save_data()?;
     let listener = start_listener("127.0.0.1:1337")?;
 
@@ -291,7 +291,8 @@ fn main() -> Result<(), ServerError> {
     let web_server = {
         let c_mng_tx = mng_tx.clone();
         thread::spawn(move || {
-            web_server(workers, c_mng_tx);
+            start_web_server();
+            //web_server(workers, c_mng_tx);
         })
     };
     
