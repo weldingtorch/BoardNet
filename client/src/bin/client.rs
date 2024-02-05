@@ -1,9 +1,6 @@
-// Client task manager/executer
+// Client (executes tasks)
 
 extern crate cluster;
-
-//mod cluster::ioutils;
-//mod filelib;
 
 use std::io::{prelude::*, BufReader, BufWriter, Error};
 use std::thread;
@@ -11,14 +8,14 @@ use std::process::{Command, Output, ExitCode};
 use std::net::Shutdown;
 use std::fs::File;
 
-
 use cluster::ioutils::{TcpStream, connect_to, send_u64, recieve_u64, recieve_data, send_data, recieve_data_buffered, get_hash_of};
 use cluster::filelib::{FileError, Task, TaskOutput, AttachmentType};
 
 use ciborium::{ser, de};
 
-const CLIENT_PATH: &str = "./target/debug/client.exe";
-const NEW_CLIENT_PATH: &str = "./target/debug/new_client.exe";
+
+const CLIENT_PATH: &str = "../target/debug/client.exe";
+const NEW_CLIENT_PATH: &str = "../target/debug/new_client.exe";
 
 #[derive(Debug)]
 enum ClientError {

@@ -1,7 +1,10 @@
-// Server (task/client distributor)
+// Server (distributes tasks and client updates)
 
 extern crate cluster;
+#[macro_use] extern crate rocket;
 
+mod web;
+mod db;
 
 use std::collections::HashMap;
 use std::fs::File;
@@ -12,13 +15,13 @@ use std::sync::{Arc, RwLock, mpsc::{channel, Receiver, Sender}};
 
 use cluster::ioutils::{TcpStream, start_listener, send_u64, recieve_u64, send_data, recieve_data, send_data_buffered, get_bytes_of, get_hash_of};
 use cluster::filelib::{Task, TaskOutput, FileError};
-use cluster::web::start_web_server;
+use web::start_web_server;
 
 use ciborium::{ser, de};
 use queues::{Buffer, IsQueue};
 
 
-const CLIENT_PATH: &str = "./target/debug/client.exe";
+const CLIENT_PATH: &str = "../target/debug/client.exe";
 
 #[derive(Debug)]
 enum ServerError {

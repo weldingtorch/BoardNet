@@ -1,7 +1,12 @@
-use serde::{Serialize, Deserialize};
+// filelib (defines common structs)
+// TODO: rename this module
+
 use std::io::Error;
 use std::fmt::Display;
 use std::num::ParseIntError;
+
+use serde::{Serialize, Deserialize};
+
 
 #[derive(Debug)]
 pub enum FileError {

@@ -1,9 +1,11 @@
-//use std::{sync::{Arc, RwLock}, collections::HashMap};
+// Web service (user interface and routing)
+
 use rocket::response::Redirect;
 
 
 #[get("/")]
 fn index() -> &'static str {
+    println!();
     // Network stats, form to send task, form to get task info
     "Hello, world!"
 }

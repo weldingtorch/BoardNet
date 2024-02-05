@@ -1,12 +1,11 @@
-extern crate fxhash;
+// IO utilities (networking and file transmission)
 
 use std::io::{BufReader, BufWriter, Error};
 use std::io::prelude::*;
-pub use std::fs::File;
-pub use fxhash::hash64;
-
-
 pub use std::net::{TcpStream, TcpListener, ToSocketAddrs, Ipv4Addr, Shutdown};
+pub use std::fs::File;
+
+pub use fxhash::hash64;
 
 
 pub fn start_listener(addr: impl ToSocketAddrs) -> Result<TcpListener, Error> {

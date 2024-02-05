@@ -1,4 +1,4 @@
-// Client updater
+// Client launcher (updates and runs client)
 
 //use std::env::current_dir;
 use std::fs::rename;
@@ -6,6 +6,7 @@ use std::io::{Error, stdout, Write};
 use std::process::Command;
 use std::thread::sleep;
 use std::time::Duration;
+
 
 fn update() -> Result<(), Error> {
     println!("Trying to update client");
