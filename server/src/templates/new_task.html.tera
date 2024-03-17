@@ -1,0 +1,33 @@
+<!DOCTYPE html>
+
+<html>
+    <head>
+        <meta charset="utf-8"/>
+    </head>
+
+    <body>
+        <h1>New task</h1>
+
+        <form action="/new_task" method="post" enctype="multipart/form-data">
+            <label for="shell">Task shell script:</label>
+            <br>
+            <textarea id="shell" name="shell" required></textarea>
+            <br>
+
+            <label for="upload_file">Upload additional file (any extention(s) will be removed):</label>
+            <br>
+            <input id="upload_file" name="upload_file" type="file">
+            <br>
+            <label for="retain_attachment">Retain file after script execution:</label>
+            <br>
+            <input id="retain_attachment" name="retain_attachment" type="checkbox">
+            <br>
+
+            <label for="timeout">Task timeout in seconds:</label>
+            <input id="timeout" type="number" name="timeout" min="1000" required>
+            <br>
+
+            <input type="submit" value="Submit">
+        </form>
+    </body>
+</html>

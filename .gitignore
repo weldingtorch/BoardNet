@@ -3,3 +3,5 @@
 /target
 
 /task
+client/tasks
+server/tasks

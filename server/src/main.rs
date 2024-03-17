@@ -107,7 +107,7 @@ fn thread_collector(rx: Receiver<Option<JoinHandle<Result<(), ServerError>>>>){
 
 
 #[derive(Debug)]
-struct Worker {
+pub struct Worker {
     id: u8,
     is_free: bool,
 }
@@ -118,12 +118,13 @@ impl Worker {
     }
 }
 
-enum ManagerEvent {
+pub enum ManagerEvent {
     NewTask(Task),
     NewWorker(Sender<Task>), // worker_tx
     WorkerMessage(u8, TaskOutput), // worker_id, output
     Stop,
 }
+
 
 //              Event_recv
 fn task_manager(rx: Receiver<ManagerEvent>, workers_lock: Arc<RwLock<HashMap<u8, Worker>>>) {
@@ -239,12 +240,11 @@ fn offer_tasks(rx: Receiver<Task>, stream: &TcpStream, mng_tx: Sender<ManagerEve
         ser::into_writer(&task, &mut serialized_task).unwrap();  // TODO: handle result
         send_data(&mut writer, &serialized_task)?;
 
-        if let Some(_at) = &task.attachment {
-            let file = File::open(format!("./attachments/{}", task.id))?;
-            let size = file.metadata()?.len();
+        if let Some(at) = &task.attachment {
+            let file = File::open(format!("./tasks/{}/{}", task.id, at.filename))?;
             let mut file_reader = BufReader::new(file);
 
-            send_data_buffered(&mut writer, &mut file_reader, size)?;
+            send_data_buffered(&mut writer, &mut file_reader, at.size)?;
         }
 
         println!("[wt_{}] Sent task (id = {}) to worker", id, task.id);
@@ -258,19 +258,6 @@ fn offer_tasks(rx: Receiver<Task>, stream: &TcpStream, mng_tx: Sender<ManagerEve
     Ok(())
 }
 
-fn web_server(workers: Arc<RwLock<HashMap<u8, Worker>>>, mng_tx: Sender<ManagerEvent>) {
-
-    let test_task = Task {
-        id: 0,
-        shell: String::from("echo Success"),
-        attachment: None,
-        timeout: 1000
-    };
-    
-    println!("[web] Recieved task: {:?}", test_task);
-    mng_tx.send(ManagerEvent::NewTask(test_task)).unwrap();
-    // TODO: call a function from web/mod.rs to start web server
-}
 
 fn main() -> Result<(), ServerError> {
 
@@ -282,19 +269,18 @@ fn main() -> Result<(), ServerError> {
     let (mng_tx, mng_rx) = channel();
     
     let manager = {
-        let workers = workers.clone();
+        let c_workers = workers.clone();
         
         thread::spawn(|| {
-            task_manager(mng_rx, workers);
+            task_manager(mng_rx, c_workers);
         })
     };
 
-    //let (web_tx, web_rx) = channel();
-
     let web_server = {
         let c_mng_tx = mng_tx.clone();
-        thread::spawn(move || {
-            start_web_server();
+
+        thread::spawn(|| {
+            start_web_server(c_mng_tx, workers).unwrap();
             //web_server(workers, c_mng_tx);
         })
     };
@@ -306,7 +292,7 @@ fn main() -> Result<(), ServerError> {
     });
 
     
-    for connection in listener.incoming(){
+    for connection in listener.incoming() {
         // NOTE: Can create too many threads. Maybe try switching to thread pools or async?
         let (tx, rx) = channel::<Task>();
         let c_mng_tx = mng_tx.clone();
