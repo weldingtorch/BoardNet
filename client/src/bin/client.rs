@@ -2,11 +2,11 @@
 
 extern crate cluster;
 
-use std::io::{prelude::*, BufReader, BufWriter, Error};
-use std::thread;
-use std::process::{Command, Output, ExitCode};
-use std::net::Shutdown;
 use std::fs::File;
+use std::io::{prelude::*, BufReader, BufWriter, Error};
+use std::net::Shutdown;
+use std::process::{Command, Output, ExitCode, Stdio};
+use std::thread;
 
 use cluster::ioutils::{TcpStream, connect_to, send_u64, recieve_u64, recieve_data, send_data, recieve_data_buffered, get_hash_of};
 use cluster::filelib::{FileError, Task, TaskOutput, AttachmentType};
@@ -57,12 +57,22 @@ fn update(reader: &mut BufReader<&TcpStream>, writer: &mut BufWriter<&TcpStream>
     Ok(true)
 }
 
-fn run_task(cwd: String, timeout: u16) -> Result<Output, ClientError> {
+fn run_task(cwd: String) -> Result<Output, ClientError> {
     let handle = thread::spawn(move || {
-        let output = Command::new("cmd")  // sh -c for unux
-            .args(["/c", &format!("task.bat")]).current_dir(cwd)
+        println!("\nTask execution.\n");
+        
+        let output = Command::new("cmd")  // sh -c for unix
+            .args(["/c", &format!("task.bat")])
+            .current_dir(cwd)
+            //.stdin(Stdio::inherit())
+            //.stdout(Stdio::inherit())
+            //.stderr(Stdio::inherit())
+            //.spawn()?;
             .output()?;
-        // TODO: timeout execution using task specified timeout value 
+        
+        //let output = child.wait_with_output()?;
+        
+        println!("End of task execution.\n");
         println!("Task executed with {}", output.status);
         Ok(output)
     });
@@ -134,7 +144,7 @@ fn main() -> ExitCode {
         }
 
         // Execute new task
-        let output = run_task(task_cwd.clone(), task.timeout).unwrap();  // TODO: handle result (send it to server?)
+        let output = run_task(task_cwd.clone()).unwrap();  // TODO: handle result (send it to server?)
         let task_output = TaskOutput {
             task_id: task.id,
             code: output.status.code(),

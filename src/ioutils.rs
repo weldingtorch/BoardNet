@@ -21,7 +21,16 @@ pub fn discover_master_ip(worker_addr: Ipv4Addr) {
     let octs = &worker_addr.octets()[0..3];
     let pool = (0..255).map(|x| (Ipv4Addr::new(octs[0], octs[1], octs[2], x), 1337));
     for addr in pool {
-        let stream = TcpStream::connect(addr);
+        if let Ok(mut stream) = TcpStream::connect(addr) {
+            let mut buf = [0u8; 6];
+            if stream.read_exact(&mut buf).is_err() { continue };
+            let whois = String::from_utf8_lossy(&buf);
+            match whois {
+                "master" => (),
+                "client" => (),
+            }
+
+        }
     }
     todo!();
 }

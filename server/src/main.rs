@@ -155,7 +155,6 @@ fn task_manager(rx: Receiver<ManagerEvent>, workers_lock: Arc<RwLock<HashMap<u8,
                     id: max_id.into(), 
                     shell: String::new(), 
                     attachment: None, 
-                    timeout: 0
                 };
                 tx.send(init_task).unwrap();
 

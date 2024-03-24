@@ -31,8 +31,7 @@ impl From<ParseIntError> for FileError {
 pub struct Task {
     pub id: u32,
     pub shell: String,
-    pub attachment: Option<Attachment>,
-    pub timeout: u16, // NOTE: 0 for unlimited exeution time
+    pub attachment: Option<Attachment>
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

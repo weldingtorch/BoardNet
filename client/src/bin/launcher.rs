@@ -1,7 +1,7 @@
 // Client launcher (updates and runs client)
 
 use std::fs::rename;
-use std::io::{Error, stdout, Write};
+use std::io::Error;
 use std::process::Command;
 use std::thread::sleep;
 use std::time::Duration;
@@ -17,15 +17,17 @@ fn update() -> Result<(), Error> {
 }
 
 fn main() {
-    println!("Started shell");
+    println!("Started launcher");
     //println!("cwd: {:?}", current_dir().unwrap());
     loop {
         println!("Starting client");
-        let client_process = Command::new(CLIENT_PATH).output().expect("Failed to start client");
+        
+        let mut client_child = Command::new(CLIENT_PATH).spawn().expect("Failed to start client");
+        let status = client_child.wait().unwrap();
+        
         println!("Client exited");
-        stdout().write_all(&client_process.stdout).expect("Failed to print stdout of client");
-        let status = client_process.status;
         println!("Cleint status: {}", status);
+        
         if let Some(code) = status.code() {
             match code {
                 1 => sleep(Duration::from_secs(5)),  // If errored restart with timeout (change to 5m)
@@ -33,7 +35,7 @@ fn main() {
                 _ => (),  // restart     // If updater can't rename a file but client was able to 
             };                           // overwrite old new_client, that's a problem
         } else {
-            println!("Oh no! Client process was killed! (Got signal)");
+            println!("Oh no! Client process was killed! (Got signal)");  // So drammatic
         };
     }
 }

@@ -35,9 +35,7 @@ struct WebTask<'a> {
     shell: String,
     //attachment_type: AttachmentType,
     upload_file: Option<TempFile<'a>>,
-    retain_attachment: bool,
-    #[field(validate = range(1000..))]
-    timeout: u16
+    retain_attachment: bool
 }
 
 #[post("/new_task", data = "<form>")]
@@ -51,8 +49,7 @@ async fn new_task_post(form: Form<WebTask<'_>>) -> Redirect {
     let WebTask {
         shell,
         upload_file,
-        retain_attachment,
-        timeout
+        retain_attachment
     } = form.into_inner();
 
     let task_id = next_task_id();    
@@ -77,8 +74,7 @@ async fn new_task_post(form: Form<WebTask<'_>>) -> Redirect {
     let new_task = Task {
         id: task_id,
         shell,
-        attachment,
-        timeout
+        attachment
     };
     
     println!("[web] Recieved task: {:?}", new_task);

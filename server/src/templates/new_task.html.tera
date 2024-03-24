@@ -23,10 +23,6 @@
             <input id="retain_attachment" name="retain_attachment" type="checkbox">
             <br>
 
-            <label for="timeout">Task timeout in seconds:</label>
-            <input id="timeout" type="number" name="timeout" min="1000" required>
-            <br>
-
             <input type="submit" value="Submit">
         </form>
     </body>
