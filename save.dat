@@ -1,3 +1,7 @@
-task_path = ./task/main.py
-task_type = py
-client_path = ./target/debug/client.exe
+[client]
+server_ip = 127.0.0.1
+client_id = 1234
+
+[server]
+next_task_id = 0
+;client_id to  

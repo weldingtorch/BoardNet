@@ -8,20 +8,25 @@ mod db;
 
 use std::collections::HashMap;
 use std::fs::File;
-use std::io::{BufReader, BufWriter, Error, ErrorKind};
+use std::io::{prelude::*, BufReader, BufWriter, Error, ErrorKind};
+use std::net::{TcpStream};
+use std::sync::{Arc, RwLock, mpsc::{channel, Receiver, Sender}};
 use std::thread::{self, JoinHandle};
 use std::time::Duration;
-use std::sync::{Arc, RwLock, mpsc::{channel, Receiver, Sender}};
 
-use cluster::ioutils::{TcpStream, start_listener, send_u64, recieve_u64, send_data, recieve_data, send_data_buffered, get_bytes_of, get_hash_of};
+use cluster::ioutils::{start_listener, send_u64, send_data, recieve_data, send_data_buffered, get_bytes_of, get_hash_of};
 use cluster::filelib::{Task, TaskOutput, FileError};
+use cluster::netfaces::{ClientState, ClientMessage};
 use web::start_web_server;
 
-use ciborium::{ser, de};
+use ciborium::{ser, de, from_reader};
 use queues::{Buffer, IsQueue};
 
 
+#[cfg(debug_assertions)]
 const CLIENT_PATH: &str = "../target/debug/client.exe";
+#[cfg(not(debug_assertions))]
+const CLIENT_PATH: &str = "./client.exe";
 
 #[derive(Debug)]
 enum ServerError {
@@ -42,42 +47,43 @@ impl From<Error> for ServerError {
     }
 }
 
-fn update_client(stream: &TcpStream) -> Result<u64, ServerError> {
-    let mut reader = BufReader::new(stream);
-    let mut writer = BufWriter::new(stream);
-    
-    println!("Serving {}", stream.peer_addr().unwrap());
 
-    // client-chosen communication mode
-    let mode = recieve_u64(&mut reader)?;
+fn greet_client(stream: &mut TcpStream) ->Result<bool, ServerError> {
+    stream.write_all(b"master")?;
     
-    match mode {
-        1 => 1, // ready for new task.  TODO: Change to enum (ClientMode, ClientStatus)
-        2 => {
-            send_u64(&mut writer, get_hash_of(CLIENT_PATH)?)?; // launch update sequence // NOTE: can be cached
-            match recieve_u64(&mut reader)? {
-                1 => 1,  // client is up to date
-                2 => {
-                    let mut payload = get_bytes_of(CLIENT_PATH)?;
-                    send_data_buffered(&mut writer, &mut payload.0, payload.1)?;
-                    2 // not ready
-                },
-                _ => {
-                    Err(ServerError::ProtocolError(
-                        "Client violated protocol".to_owned(),
-                    ))?
-                }
-            }
-        },
-        _ => {
-            Err(ServerError::ProtocolError(
-                "Client violated protocol".to_owned(),
-            ))?
+    let mut buf = [0u8; 6];
+    stream.read_exact(&mut buf)?;
+    
+    match &buf {
+        b"search" => Ok(false),
+        b"normal" => Ok(true),
+        _ => Err(ServerError::ProtocolError("Wrong greeting".to_owned())),
+    }
+}
+
+fn update_client(mut reader: &mut BufReader<&TcpStream>, writer: &mut BufWriter<&TcpStream>) -> Result<ClientState, ServerError> {
+    // First client message
+    match from_reader(&mut reader).unwrap() {
+        ClientMessage::SkipUpdate => return Ok(ClientState::Ready),
+        ClientMessage::DoUpdate => {
+            send_u64(writer, get_hash_of(CLIENT_PATH)?)?; // Send client hash // NOTE: can be cached
         }
+        _ => Err(ServerError::ProtocolError("Wrong update scheme".to_owned()))?
     };
     
-    Ok(1) // NOTE: idk if this needed
+    // Second client message
+    match from_reader(&mut reader).unwrap() {
+        ClientMessage::HashMatched => Ok(ClientState::Ready),  // Client is up to date
+        ClientMessage::HashMismatched => {
+            let mut payload = get_bytes_of(CLIENT_PATH)?;
+            send_data_buffered(writer, &mut payload.0, payload.1)?;
+            
+            Ok(ClientState::Updating) // Client disconnects
+        },
+        _ => Err(ServerError::ProtocolError("Wrong hash comparison".to_owned()))?
+    }
 }
+
 
 fn thread_collector(rx: Receiver<Option<JoinHandle<Result<(), ServerError>>>>){
     let mut handles = vec![];
@@ -124,7 +130,6 @@ pub enum ManagerEvent {
     WorkerMessage(u8, TaskOutput), // worker_id, output
     Stop,
 }
-
 
 //              Event_recv
 fn task_manager(rx: Receiver<ManagerEvent>, workers_lock: Arc<RwLock<HashMap<u8, Worker>>>) {
@@ -224,9 +229,7 @@ fn task_manager(rx: Receiver<ManagerEvent>, workers_lock: Arc<RwLock<HashMap<u8,
     }
 }
 
-fn offer_tasks(rx: Receiver<Task>, stream: &TcpStream, mng_tx: Sender<ManagerEvent>) -> Result<(), Error>{
-    let mut reader = BufReader::new(stream);
-    let mut writer = BufWriter::new(stream);
+fn offer_tasks(rx: Receiver<Task>, reader: &mut BufReader<&TcpStream>, writer: &mut BufWriter<&TcpStream>, mng_tx: Sender<ManagerEvent>) -> Result<(), Error>{
     
     let id: u8 = rx.recv().unwrap().id.try_into().unwrap(); // Init task that contains worker id (guarantied to fit in u8)
 
@@ -237,21 +240,20 @@ fn offer_tasks(rx: Receiver<Task>, stream: &TcpStream, mng_tx: Sender<ManagerEve
 
         let mut serialized_task = vec![];
         ser::into_writer(&task, &mut serialized_task).unwrap();  // TODO: handle result
-        send_data(&mut writer, &serialized_task)?;
+        send_data(writer, &serialized_task)?;                     // FIXME: try to ser directly into writer w/o send_data
 
         if let Some(at) = &task.attachment {
             let file = File::open(format!("./tasks/{}/{}", task.id, at.filename))?;
             let mut file_reader = BufReader::new(file);
 
-            send_data_buffered(&mut writer, &mut file_reader, at.size)?;
+            send_data_buffered(writer, &mut file_reader, at.size)?;
         }
 
         println!("[wt_{}] Sent task (id = {}) to worker", id, task.id);
-        let serialized = recieve_data(&mut reader)?;
-        let output: TaskOutput = de::from_reader(serialized.as_slice()).expect("Failed to deserialize result.");
+
+        let serialized = recieve_data(reader)?;                // FIXME: try to de directly from reader w/o recieve_data
+        let output: TaskOutput = de::from_reader(serialized.as_slice()).expect("Failed to deserialize result");
         mng_tx.send(ManagerEvent::WorkerMessage(id, output)).expect("Manager died");
-        // TODO: send output to web
-        
     }
     
     Ok(())
@@ -261,53 +263,62 @@ fn offer_tasks(rx: Receiver<Task>, stream: &TcpStream, mng_tx: Sender<ManagerEve
 fn main() -> Result<(), ServerError> {
 
     //let save_data = load_save_data()?;
-    let listener = start_listener("127.0.0.1:1337")?;
+    let listener = start_listener("0.0.0.0:1337")?;
 
     let workers: Arc<RwLock<HashMap<u8, Worker>>> = Arc::new(RwLock::new(HashMap::new()));
 
     let (mng_tx, mng_rx) = channel();
     
-    let manager = {
-        let c_workers = workers.clone();
-        
-        thread::spawn(|| {
-            task_manager(mng_rx, c_workers);
-        })
-    };
+    let manager = thread::spawn({
+            let workers = workers.clone();
+            move || task_manager(mng_rx, workers)
+    });
 
-    let web_server = {
-        let c_mng_tx = mng_tx.clone();
-
-        thread::spawn(|| {
-            start_web_server(c_mng_tx, workers).unwrap();
-            //web_server(workers, c_mng_tx);
-        })
-    };
+    let web_server = thread::spawn({
+        let mng_tx = mng_tx.clone();
+        move || start_web_server(mng_tx, workers).unwrap()
+    });
     
     // NOTE: Check if I still need it when working out graceful shutdown
     let (col_tx, col_rx) = channel();
-    let collector = thread::spawn( || {
-        thread_collector(col_rx);
-    });
+    let collector = thread::spawn(
+        move || thread_collector(col_rx)
+    );
 
     
     for connection in listener.incoming() {
         // NOTE: Can create too many threads. Maybe try switching to thread pools or async?
         let (tx, rx) = channel::<Task>();
-        let c_mng_tx = mng_tx.clone();
+        let mng_tx = mng_tx.clone();
 
         let handle = thread::spawn(|| {
-            let stream = connection?;
-            if 1 == update_client(&stream)? {
-                c_mng_tx.send(ManagerEvent::NewWorker(tx)).expect("Manager is dead");
-                // TODO: handle error properly
-                if let Err(e) = offer_tasks(rx, &stream, c_mng_tx) {
-                    match e.kind() {
-                        ErrorKind::UnexpectedEof => {},
-                        _ => {},
+            let mut stream = connection?;
+            
+            match greet_client(&mut stream)? {
+                false => return Ok(()), // It's a search, end serving early
+                true => (),             // Go on
+            };
+
+            let mut reader = BufReader::new(&stream);
+            let mut writer = BufWriter::new(&stream);
+
+            println!("Serving {}", stream.peer_addr().unwrap());
+
+            match update_client(&mut reader, &mut writer)? {
+                ClientState::Ready => {
+                    mng_tx.send(ManagerEvent::NewWorker(tx)).expect("Manager is dead");
+                    
+                    // TODO: handle error properly
+                    if let Err(e) = offer_tasks(rx, &mut reader, &mut writer, mng_tx) {
+                        match e.kind() {
+                            ErrorKind::UnexpectedEof => {},
+                            _ => {},
+                        }
                     }
-                }
+                },
+                ClientState::Updating => (),
             }
+
             Ok(())
         });
         

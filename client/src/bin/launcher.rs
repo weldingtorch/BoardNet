@@ -7,8 +7,18 @@ use std::thread::sleep;
 use std::time::Duration;
 
 
+const ERROR_EXITCODE: u8 = 1;
+const UPDATE_EXITCODE: u8 = 2;
+
+#[cfg(debug_assertions)]
 const CLIENT_PATH: &str = "../target/debug/client.exe";
+#[cfg(debug_assertions)]
 const NEW_CLIENT_PATH: &str = "../target/debug/new_client.exe";
+#[cfg(not(debug_assertions))]
+const CLIENT_PATH: &str = "./client.exe";
+#[cfg(not(debug_assertions))]
+const NEW_CLIENT_PATH: &str = "./new_client.exe";
+
 
 fn update() -> Result<(), Error> {
     println!("Trying to update client");
@@ -18,7 +28,7 @@ fn update() -> Result<(), Error> {
 
 fn main() {
     println!("Started launcher");
-    //println!("cwd: {:?}", current_dir().unwrap());
+    
     loop {
         println!("Starting client");
         
@@ -29,9 +39,10 @@ fn main() {
         println!("Cleint status: {}", status);
         
         if let Some(code) = status.code() {
-            match code {
-                1 => sleep(Duration::from_secs(5)),  // If errored restart with timeout (change to 5m)
-                2 => update().unwrap(),  // Try to update
+            match code as u8 {  // Match only 8 last bits as Unix already truncates exit status
+                0 => break,
+                ERROR_EXITCODE => sleep(Duration::from_secs(5)),  // If errored restart with timeout (change to 5m)
+                UPDATE_EXITCODE => update().unwrap(),  // Try to update
                 _ => (),  // restart     // If updater can't rename a file but client was able to 
             };                           // overwrite old new_client, that's a problem
         } else {

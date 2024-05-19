@@ -1,26 +1,41 @@
 // Client (executes tasks)
 
+mod savedat;
 extern crate cluster;
 
 use std::fs::File;
 use std::io::{prelude::*, BufReader, BufWriter, Error};
-use std::net::Shutdown;
-use std::process::{Command, Output, ExitCode, Stdio};
-use std::thread;
+use std::net::{TcpStream, Shutdown};
+use std::process::{Command, Output, ExitCode};
 
-use cluster::ioutils::{TcpStream, connect_to, send_u64, recieve_u64, recieve_data, send_data, recieve_data_buffered, get_hash_of};
+use savedat::{SaveData, load_save_data, save_save_data};
+use cluster::ioutils::{connect_to, discover_master_ip, recieve_u64, recieve_data, send_data, recieve_data_buffered, get_hash_of};
 use cluster::filelib::{FileError, Task, TaskOutput, AttachmentType};
+use cluster::netfaces::{ClientState, ClientMessage};
 
 use ciborium::{ser, de};
 
 
+#[cfg(debug_assertions)]
 const CLIENT_PATH: &str = "../target/debug/client.exe";
+#[cfg(debug_assertions)]
 const NEW_CLIENT_PATH: &str = "../target/debug/new_client.exe";
+
+#[cfg(not(debug_assertions))]
+const CLIENT_PATH: &str = "./client.exe";
+#[cfg(not(debug_assertions))]
+const NEW_CLIENT_PATH: &str = "./new_client.exe";
+
+const ERROR_EXITCODE: u8 = 1;
+const UPDATE_EXITCODE: u8 = 2;
+
 
 #[derive(Debug)]
 enum ClientError {
     FileError(FileError),
     NetError(Error),
+    CBORError(ser::Error<Error>),
+    UpdateError(String),
 }
 
 impl From<FileError> for ClientError {
@@ -35,80 +50,113 @@ impl From<Error> for ClientError {
     }
 }
 
+impl From<ser::Error<std::io::Error>> for ClientError {
+    fn from(err: ser::Error<std::io::Error>) -> Self {
+        ClientError::CBORError(err)
+    }
+}
 
-fn update(reader: &mut BufReader<&TcpStream>, writer: &mut BufWriter<&TcpStream>) -> Result<bool, ClientError> {
+fn greet_client() {
+    // TODO: this
+    todo!();
+}
+
+fn update(reader: &mut BufReader<&TcpStream>, mut writer: &mut BufWriter<&TcpStream>) -> Result<ClientState, ClientError> {
     let l_hash = get_hash_of(CLIENT_PATH)?;
-    send_u64(writer, 2)?;  // Ask for remote client hash
+    
+    ser::into_writer(&ClientMessage::DoUpdate, &mut writer)?;  // Ask for latest client hash
+    writer.flush()?;
     let r_hash = recieve_u64(reader)?;
+    
     if l_hash == r_hash {
-        return Ok(false);  // Client is up to date
+        ser::into_writer(&ClientMessage::HashMatched, &mut writer)?;
+        writer.flush()?;
+        return Ok(ClientState::Ready);  // Client is up to date
     }
 
     let file = File::options().create(true).truncate(true).write(true).open(NEW_CLIENT_PATH)?;
     let mut file = BufWriter::new(file);
     
-    send_u64(writer, 2)?;  // Ask for remote client file
+    ser::into_writer(&ClientMessage::HashMismatched, &mut writer)?;  // Ask for latest client file
+    writer.flush()?;
+
     recieve_data_buffered(reader, &mut file)?;
     
-    if get_hash_of(NEW_CLIENT_PATH)? != r_hash {  // Bad practice, should rewrite get_hash_of
-        panic!("Not implemented error for hash mismatch, failed to update");
+    if get_hash_of(NEW_CLIENT_PATH)? != r_hash {  // TODO: Bad practice, should rewrite get_hash_of
+        return Err(ClientError::UpdateError("Failed to verify new client: hash mismatch.".to_owned()));
     }
     
-    Ok(true)
+    Ok(ClientState::Updating)
 }
 
 fn run_task(cwd: String) -> Result<Output, ClientError> {
-    let handle = thread::spawn(move || {
-        println!("\nTask execution.\n");
-        
-        let output = Command::new("cmd")  // sh -c for unix
-            .args(["/c", &format!("task.bat")])
-            .current_dir(cwd)
-            //.stdin(Stdio::inherit())
-            //.stdout(Stdio::inherit())
-            //.stderr(Stdio::inherit())
-            //.spawn()?;
-            .output()?;
-        
-        //let output = child.wait_with_output()?;
-        
-        println!("End of task execution.\n");
-        println!("Task executed with {}", output.status);
-        Ok(output)
-    });
-
-    println!("Spawned exec thread");
-    let output = handle.join().unwrap();
-    output
+    println!("\nTask execution.\n");
+    
+    let output = Command::new("cmd")  // sh -c for unix
+        .args(["/c", &format!("task.bat")])
+        .current_dir(cwd)
+        //.spawn()?.stdout?.read;
+        .output()?;
+    
+    //let output = child.wait_with_output()?;
+    
+    println!("End of task execution.\n");
+    println!("Task executed with {}", output.status);
+    Ok(output)
 }
 
 fn main() -> ExitCode {
     println!("Client started");
-    //let mut save_data = load_save_data()?;  // used to store masterIp, publicKey, privateKey, ...
 
-    // next line panics if no server
-    let stream = connect_to("127.0.0.1:1337").unwrap();  // TODO: change to bruteforcing master ip
+    let mut save_data = load_save_data().unwrap();  // used to store masterIp, clientId
+
+    let mut stream = match connect_to((save_data.master_ip, 1337)) {
+        Ok(s) => s,
+        Err(e) => {
+            println!("{:?}", e);
+            save_data.set_master_ip(SaveData::default().master_ip);
+
+            let addr = discover_master_ip().unwrap();
+            save_data.set_master_ip(addr);
+            save_save_data(&save_data).unwrap();
+            
+            connect_to((addr, 1337)).unwrap()
+        }
+    };
+
+    let mut test_buf = [0u8; 6];
+    stream.read_exact(&mut test_buf).unwrap();
+    
+    if &test_buf != b"master" {
+        save_data.set_master_ip(SaveData::default().master_ip);
+        save_save_data(&save_data).unwrap();
+        panic!("Wrong greeting. Master ip has been reset. Rebooting.");
+    } 
+
+    stream.write_all(b"normal").unwrap();
+    
+
     let mut stream_reader = BufReader::new(&stream);
     let mut stream_writer = BufWriter::new(&stream);
-    
+
     match update(&mut stream_reader, &mut stream_writer) {
-        Ok(is_ready) => {
-            if is_ready {
-                println!("Asking shell to update client");
-                return ExitCode::from(2);  // Try to update
-            } else {
-                println!("Client is up to date");
+        Ok(state) => {
+            match state {
+                ClientState::Ready => {
+                    println!("Client is up to date");
+                }, 
+                ClientState::Updating => {
+                    println!("Asking shell to update client");
+                    return ExitCode::from(UPDATE_EXITCODE);  // Tell launcher to update client
+                },
             }
         },
         Err(e) => {
             println!("Failed to download update"); // Not enough permissions, network or io error 
             println!("{:?}", e);
-            return ExitCode::from(1);
+            return ExitCode::from(ERROR_EXITCODE);  // Tell launcher about error
         }
-    };
-
-    send_u64(&mut stream_writer, 1).unwrap(); // Tell master we are ready for working 
-    println!("Told master client is ready");
+    }
     
     loop {
         // Recieve new task
