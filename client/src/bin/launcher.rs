@@ -15,9 +15,9 @@ const CLIENT_PATH: &str = "../target/debug/client.exe";
 #[cfg(debug_assertions)]
 const NEW_CLIENT_PATH: &str = "../target/debug/new_client.exe";
 #[cfg(not(debug_assertions))]
-const CLIENT_PATH: &str = "./client.exe";
+const CLIENT_PATH: &str = "./client";
 #[cfg(not(debug_assertions))]
-const NEW_CLIENT_PATH: &str = "./new_client.exe";
+const NEW_CLIENT_PATH: &str = "./new_client";
 
 
 fn update() -> Result<(), Error> {

@@ -22,9 +22,9 @@ const CLIENT_PATH: &str = "../target/debug/client.exe";
 const NEW_CLIENT_PATH: &str = "../target/debug/new_client.exe";
 
 #[cfg(not(debug_assertions))]
-const CLIENT_PATH: &str = "./client.exe";
+const CLIENT_PATH: &str = "./client";
 #[cfg(not(debug_assertions))]
-const NEW_CLIENT_PATH: &str = "./new_client.exe";
+const NEW_CLIENT_PATH: &str = "./new_client";
 
 const ERROR_EXITCODE: u8 = 1;
 const UPDATE_EXITCODE: u8 = 2;
@@ -92,8 +92,8 @@ fn update(reader: &mut BufReader<&TcpStream>, mut writer: &mut BufWriter<&TcpStr
 fn run_task(cwd: String) -> Result<Output, ClientError> {
     println!("\nTask execution.\n");
     
-    let output = Command::new("cmd")  // sh -c for unix
-        .args(["/c", &format!("task.bat")])
+    let output = Command::new("sh")  // sh -c for unix
+        .args(["-c", &format!("./task.sh")])
         .current_dir(cwd)
         //.spawn()?.stdout?.read;
         .output()?;
@@ -168,7 +168,7 @@ fn main() -> ExitCode {
         println!("Recieved new task: {:?}", task);
         
         let task_cwd = format!("./{}", task.id);
-        let shell_path = format!("{}/task.bat", &task_cwd);
+        let shell_path = format!("{}/task.sh", &task_cwd);
         let mut clean_up = true;
         
         // Save shell to file

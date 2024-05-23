@@ -26,7 +26,7 @@ use queues::{Buffer, IsQueue};
 #[cfg(debug_assertions)]
 const CLIENT_PATH: &str = "../target/debug/client.exe";
 #[cfg(not(debug_assertions))]
-const CLIENT_PATH: &str = "./client.exe";
+const CLIENT_PATH: &str = "./client";
 
 #[derive(Debug)]
 enum ServerError {
