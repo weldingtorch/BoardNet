@@ -1,6 +1,6 @@
 [package]
 name = "cluster"
-version = "0.3.0"
+version = "0.3.1"
 edition = "2021"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
@@ -9,7 +9,7 @@ edition = "2021"
 fxhash = "0.2.1"
 ifcfg = "0.1.2"
 serde = {version = "1.0.190", features = ["derive"]}
-rocket = "=0.5.0"
+rocket = "=0.5.1"
 
 [workspace]
 members = [".", "client", "server"]

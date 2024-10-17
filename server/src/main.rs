@@ -23,9 +23,9 @@ use ciborium::{ser, de, from_reader};
 use queues::{Buffer, IsQueue};
 
 
-#[cfg(debug_assertions)]
+#[cfg(debug_assertions)]  // I'm debugging on windows
 const CLIENT_PATH: &str = "../target/debug/client.exe";
-#[cfg(not(debug_assertions))]
+#[cfg(not(debug_assertions))] // Releases are built for unix
 const CLIENT_PATH: &str = "./client";
 
 #[derive(Debug)]
@@ -49,14 +49,14 @@ impl From<Error> for ServerError {
 
 
 fn greet_client(stream: &mut TcpStream) ->Result<bool, ServerError> {
-    stream.write_all(b"master")?;
+    stream.write_all(b"master")?;  // Tell client this is a master endpoint
     
     let mut buf = [0u8; 6];
-    stream.read_exact(&mut buf)?;
+    stream.read_exact(&mut buf)?;  // Learn in which mode client has connected
     
     match &buf {
-        b"search" => Ok(false),
-        b"normal" => Ok(true),
+        b"search" => Ok(false),  // It is searching for master's ip
+        b"normal" => Ok(true),  // It is trying to get new tasks
         _ => Err(ServerError::ProtocolError("Wrong greeting".to_owned())),
     }
 }
@@ -173,6 +173,17 @@ fn task_manager(rx: Receiver<ManagerEvent>, workers_lock: Arc<RwLock<HashMap<u8,
                 // add result for success and fail
                 // success -> finish task; set worker free
                 // fail -> retry task?
+                
+                // make files output.out and output.err under tasks/{task_id}
+                // write stdout to output.out and save
+                // write stderr to output.err and save
+                
+                let mut out_file = File::create(format!("./tasks/{}/output.out", output.task_id)).unwrap();
+                let mut err_file = File::create(format!("./tasks/{}/output.err", output.task_id)).unwrap();
+                
+                out_file.write_all(&output.stdout).unwrap();
+                err_file.write_all(&output.stderr).unwrap();
+                
                 let stdout = String::from_utf8(output.stdout).unwrap();
                 let stderr = String::from_utf8(output.stderr).unwrap();
                 
@@ -270,19 +281,19 @@ fn main() -> Result<(), ServerError> {
     let (mng_tx, mng_rx) = channel();
     
     let manager = thread::spawn({
-            let workers = workers.clone();
-            move || task_manager(mng_rx, workers)
+        let workers = workers.clone();
+        || task_manager(mng_rx, workers)
     });
 
     let web_server = thread::spawn({
         let mng_tx = mng_tx.clone();
-        move || start_web_server(mng_tx, workers).unwrap()
+        || start_web_server(mng_tx, workers).unwrap()
     });
     
     // NOTE: Check if I still need it when working out graceful shutdown
     let (col_tx, col_rx) = channel();
     let collector = thread::spawn(
-        move || thread_collector(col_rx)
+        || thread_collector(col_rx)
     );
 
     

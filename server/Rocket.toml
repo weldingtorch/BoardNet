@@ -1,5 +1,6 @@
 [default]
 template_dir = "src/templates/"
+temp_dir = "tmp"
 limits = { data-form = "1GiB", file = "1GiB", string = "1MiB" }
 address = "127.0.0.1"
 port = 8000

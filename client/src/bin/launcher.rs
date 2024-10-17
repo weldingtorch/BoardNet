@@ -23,6 +23,7 @@ const NEW_CLIENT_PATH: &str = "./new_client";
 fn update() -> Result<(), Error> {
     println!("Trying to update client");
     rename(NEW_CLIENT_PATH, CLIENT_PATH)?;
+    Command::new("chmod").args(["u+x", CLIENT_PATH]).status()?;
     Ok(())
 }
 

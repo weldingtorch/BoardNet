@@ -4,6 +4,7 @@ use crate::{ManagerEvent, Task, Worker};
 use crate::db::next_task_id;
 
 use std::collections::HashMap;
+use std::fs::read_to_string;
 use std::path::Path;
 use std::sync::{mpsc::Sender, OnceLock, Arc, RwLock};
 
@@ -55,10 +56,11 @@ async fn new_task_post(form: Form<WebTask<'_>>) -> Redirect {
     let task_id = next_task_id();    
     let mut attachment: Option<Attachment> = None;
 
+    let path = Path::new("./tasks").join(task_id.to_string());
+    std::fs::create_dir_all(&path).unwrap();
+
     if let Some(mut file) = upload_file {      
         if let Some(name) = file.name() {
-            let path = Path::new("./tasks").join(task_id.to_string());
-            std::fs::create_dir_all(&path).unwrap();
 
             file.persist_to(path.join(name)).await.unwrap();
 
@@ -91,8 +93,14 @@ fn task_status(task_id: u32) -> String {
     // Task out first 100 lines <download [task].out>
     // Task err first 100 lines <download [task].err>
     // Cancel? (only for "waiting in queue" I guess)
-
-    format!("Status of task id: {}", task_id)
+    let stdout = read_to_string(format!("./tasks/{}/output.out", task_id));
+    let stderr = read_to_string(format!("./tasks/{}/output.err", task_id));
+    
+    if let (Ok(o), Ok(e)) = (stdout, stderr) {
+        format!("Stdout:\n\n{}\n\nStderr:\n\n{}\n\n", o, e)
+    } else {
+        format!("Task {} hasn't executed\n", task_id)
+    }
 }
 
 #[get("/cancel?<task_id>")]

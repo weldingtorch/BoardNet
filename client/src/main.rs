@@ -5,11 +5,13 @@ extern crate cluster;
 
 use std::fs::File;
 use std::io::{prelude::*, BufReader, BufWriter, Error};
-use std::net::{TcpStream, Shutdown};
+use std::net::{TcpStream, Shutdown, Ipv4Addr};
 use std::process::{Command, Output, ExitCode};
+use std::sync::{Arc, Mutex};
+use std::thread;
 
 use savedat::{SaveData, load_save_data, save_save_data};
-use cluster::ioutils::{connect_to, discover_master_ip, recieve_u64, recieve_data, send_data, recieve_data_buffered, get_hash_of};
+use cluster::ioutils::{connect_to, start_listener, discover_master_ip, recieve_u64, recieve_data, send_data, recieve_data_buffered, get_hash_of};
 use cluster::filelib::{FileError, Task, TaskOutput, AttachmentType};
 use cluster::netfaces::{ClientState, ClientMessage};
 
@@ -56,9 +58,23 @@ impl From<ser::Error<std::io::Error>> for ClientError {
     }
 }
 
-fn greet_client() {
-    // TODO: this
-    todo!();
+fn greet_client(stream: &mut TcpStream, master_ip: Ipv4Addr) -> Result<(), Error> {
+    stream.write_all(b"client")?;
+    stream.write_all(&master_ip.octets())?;
+    
+    Ok(())
+}
+
+fn greet_routine(master_ip: Arc<Mutex<Ipv4Addr>>) -> Result<(), Error>{
+    let listener = start_listener("0.0.0.0:1337")?;
+    
+    for connection in listener.incoming() {
+        let mut stream = connection?;
+        let master_ip = *master_ip.lock().unwrap();
+        greet_client(&mut stream, master_ip)?;
+    }
+
+    Ok(())
 }
 
 fn update(reader: &mut BufReader<&TcpStream>, mut writer: &mut BufWriter<&TcpStream>) -> Result<ClientState, ClientError> {
@@ -85,7 +101,7 @@ fn update(reader: &mut BufReader<&TcpStream>, mut writer: &mut BufWriter<&TcpStr
     if get_hash_of(NEW_CLIENT_PATH)? != r_hash {  // TODO: Bad practice, should rewrite get_hash_of
         return Err(ClientError::UpdateError("Failed to verify new client: hash mismatch.".to_owned()));
     }
-    
+
     Ok(ClientState::Updating)
 }
 
@@ -93,7 +109,7 @@ fn run_task(cwd: String) -> Result<Output, ClientError> {
     println!("\nTask execution.\n");
     
     let output = Command::new("sh")  // sh -c for unix
-        .args(["-c", &format!("./task.sh")])
+        .args(["-c", &format!("chmod u+x ./task.sh; ./task.sh")])
         .current_dir(cwd)
         //.spawn()?.stdout?.read;
         .output()?;
@@ -109,14 +125,22 @@ fn main() -> ExitCode {
     println!("Client started");
 
     let mut save_data = load_save_data().unwrap();  // used to store masterIp, clientId
+    let master_ip = Arc::new(Mutex::new(save_data.master_ip));  // shared reference for greeting thread
+
+    let greet_handle = thread::spawn({
+        let master_ip = master_ip.clone();
+        || greet_routine(master_ip)
+    });
 
     let mut stream = match connect_to((save_data.master_ip, 1337)) {
         Ok(s) => s,
         Err(e) => {
             println!("{:?}", e);
+            *master_ip.lock().unwrap() = Ipv4Addr::UNSPECIFIED; 
             save_data.set_master_ip(SaveData::default().master_ip);
 
             let addr = discover_master_ip().unwrap();
+            *master_ip.lock().unwrap() = addr;
             save_data.set_master_ip(addr);
             save_save_data(&save_data).unwrap();
             
@@ -128,6 +152,7 @@ fn main() -> ExitCode {
     stream.read_exact(&mut test_buf).unwrap();
     
     if &test_buf != b"master" {
+        *master_ip.lock().unwrap() = Ipv4Addr::UNSPECIFIED;
         save_data.set_master_ip(SaveData::default().master_ip);
         save_save_data(&save_data).unwrap();
         panic!("Wrong greeting. Master ip has been reset. Rebooting.");
@@ -171,11 +196,14 @@ fn main() -> ExitCode {
         let shell_path = format!("{}/task.sh", &task_cwd);
         let mut clean_up = true;
         
-        // Save shell to file
         std::fs::create_dir(&task_cwd).unwrap();
-        let mut shell_file = File::create(&shell_path).unwrap(); //.sh for unix
-        shell_file.write_all(task.shell.as_bytes()).unwrap();
-
+        
+        // Save shell to file (in block to drop file descriptor and close file)
+        {
+            let mut shell_file = File::create(&shell_path).unwrap();
+            shell_file.write_all(task.shell.as_bytes()).unwrap();
+        }
+        
         // Save attachment to file if there is any
         if let Some(attachment) = &task.attachment {
             clean_up = !attachment.retain_attachment;
@@ -214,6 +242,7 @@ fn main() -> ExitCode {
     };
 
     stream.shutdown(Shutdown::Both).expect("Failed to close connection to remote");
+    greet_handle.join();
     
     println!("Everything is done!");
 
