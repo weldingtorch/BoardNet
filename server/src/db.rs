@@ -17,9 +17,9 @@ pub fn next_task_id() -> u32 {
 }
 
 pub fn db_test() {
-    // Opts::from_url("mysql://master:devpass@localhost").unwrap();
+    // Opts::from_url("mysql://server:devpass@localhost").unwrap();
     let opts = OptsBuilder::new()
-        .user(Some("master"))
+        .user(Some("server"))
         .pass(Some("devpass"));
     let conn = Conn::new(opts).unwrap();
     

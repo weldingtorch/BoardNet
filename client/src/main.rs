@@ -11,7 +11,7 @@ use std::sync::{Arc, Mutex};
 use std::thread;
 
 use savedat::{SaveData, load_save_data, save_save_data};
-use cluster::ioutils::{connect_to, start_listener, discover_master_ip, recieve_u64, recieve_data, send_data, recieve_data_buffered, get_hash_of};
+use cluster::ioutils::{connect_to, start_listener, discover_server_ip, recieve_u64, recieve_data, send_data, recieve_data_buffered, get_hash_of};
 use cluster::filelib::{FileError, Task, TaskOutput, AttachmentType};
 use cluster::netfaces::{ClientState, ClientMessage};
 
@@ -58,20 +58,20 @@ impl From<ser::Error<std::io::Error>> for ClientError {
     }
 }
 
-fn greet_client(stream: &mut TcpStream, master_ip: Ipv4Addr) -> Result<(), Error> {
+fn greet_client(stream: &mut TcpStream, server_ip: Ipv4Addr) -> Result<(), Error> {
     stream.write_all(b"client")?;
-    stream.write_all(&master_ip.octets())?;
+    stream.write_all(&server_ip.octets())?;
     
     Ok(())
 }
 
-fn greet_routine(master_ip: Arc<Mutex<Ipv4Addr>>) -> Result<(), Error>{
+fn greet_routine(server_ip: Arc<Mutex<Ipv4Addr>>) -> Result<(), Error>{
     let listener = start_listener("0.0.0.0:1337")?;
     
     for connection in listener.incoming() {
         let mut stream = connection?;
-        let master_ip = *master_ip.lock().unwrap();
-        greet_client(&mut stream, master_ip)?;
+        let server_ip = *server_ip.lock().unwrap();
+        greet_client(&mut stream, server_ip)?;
     }
 
     Ok(())
@@ -124,24 +124,24 @@ fn run_task(cwd: String) -> Result<Output, ClientError> {
 fn main() -> ExitCode {
     println!("Client started");
 
-    let mut save_data = load_save_data().unwrap();  // used to store masterIp, clientId
-    let master_ip = Arc::new(Mutex::new(save_data.master_ip));  // shared reference for greeting thread
+    let mut save_data = load_save_data().unwrap();  // used to store serverIp, clientId
+    let server_ip = Arc::new(Mutex::new(save_data.server_ip));  // shared reference for greeting thread
 
     let greet_handle = thread::spawn({
-        let master_ip = master_ip.clone();
-        || greet_routine(master_ip)
+        let server_ip = server_ip.clone();
+        || greet_routine(server_ip)
     });
 
-    let mut stream = match connect_to((save_data.master_ip, 1337)) {
+    let mut stream = match connect_to((save_data.server_ip, 1337)) {
         Ok(s) => s,
         Err(e) => {
             println!("{:?}", e);
-            *master_ip.lock().unwrap() = Ipv4Addr::UNSPECIFIED; 
-            save_data.set_master_ip(SaveData::default().master_ip);
+            *server_ip.lock().unwrap() = Ipv4Addr::UNSPECIFIED; 
+            save_data.set_server_ip(SaveData::default().server_ip);
 
-            let addr = discover_master_ip().unwrap();
-            *master_ip.lock().unwrap() = addr;
-            save_data.set_master_ip(addr);
+            let addr = discover_server_ip().unwrap();
+            *server_ip.lock().unwrap() = addr;
+            save_data.set_server_ip(addr);
             save_save_data(&save_data).unwrap();
             
             connect_to((addr, 1337)).unwrap()
@@ -151,11 +151,11 @@ fn main() -> ExitCode {
     let mut test_buf = [0u8; 6];
     stream.read_exact(&mut test_buf).unwrap();
     
-    if &test_buf != b"master" {
-        *master_ip.lock().unwrap() = Ipv4Addr::UNSPECIFIED;
-        save_data.set_master_ip(SaveData::default().master_ip);
+    if &test_buf != b"server" {
+        *server_ip.lock().unwrap() = Ipv4Addr::UNSPECIFIED;
+        save_data.set_server_ip(SaveData::default().server_ip);
         save_save_data(&save_data).unwrap();
-        panic!("Wrong greeting. Master ip has been reset. Rebooting.");
+        panic!("Wrong greeting. Server ip has been reset. Rebooting.");
     } 
 
     stream.write_all(b"normal").unwrap();

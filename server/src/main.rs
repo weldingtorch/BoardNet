@@ -49,13 +49,13 @@ impl From<Error> for ServerError {
 
 
 fn greet_client(stream: &mut TcpStream) ->Result<bool, ServerError> {
-    stream.write_all(b"master")?;  // Tell client this is a master endpoint
+    stream.write_all(b"server")?;  // Tell client this is a server endpoint
     
     let mut buf = [0u8; 6];
     stream.read_exact(&mut buf)?;  // Learn in which mode client has connected
     
     match &buf {
-        b"search" => Ok(false),  // It is searching for master's ip
+        b"search" => Ok(false),  // It is searching for server's ip
         b"normal" => Ok(true),  // It is trying to get new tasks
         _ => Err(ServerError::ProtocolError("Wrong greeting".to_owned())),
     }

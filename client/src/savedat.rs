@@ -41,13 +41,13 @@ impl Default for CachedData {
 
 #[derive(Debug, Clone)]
 pub struct SaveData {
-    pub master_ip: Ipv4Addr,
+    pub server_ip: Ipv4Addr,
     pub friendly_name: String,
 }
  
 impl SaveData {
-    pub fn set_master_ip(&mut self, new_master_ip: Ipv4Addr) {
-        self.master_ip = new_master_ip;
+    pub fn set_server_ip(&mut self, new_server_ip: Ipv4Addr) {
+        self.server_ip = new_server_ip;
         self.friendly_name = String::new();
     }
 }
@@ -55,7 +55,7 @@ impl SaveData {
 impl Default for SaveData {
     fn default() -> Self {
         Self {
-            master_ip: Ipv4Addr::UNSPECIFIED,
+            server_ip: Ipv4Addr::UNSPECIFIED,
             friendly_name: String::new(),
         }
     }
@@ -69,7 +69,7 @@ impl TryFrom<HashMap<String, String>> for SaveData {
         
         for (k, v) in hm.iter() {
             match k.as_str() {
-                "master_ip" => savedata.master_ip = Ipv4Addr::from_str(v)?,
+                "server_ip" => savedata.server_ip = Ipv4Addr::from_str(v)?,
                 "friendly_name" => savedata.friendly_name = v.clone(),
                 _ => continue,
             };
@@ -82,7 +82,7 @@ impl TryFrom<HashMap<String, String>> for SaveData {
 impl From<&SaveData> for String {
     fn from (sd: &SaveData) -> Self {
         let mut str = String::new();
-        str.push_str(&format!("master_ip = {}\n", sd.master_ip));
+        str.push_str(&format!("server_ip = {}\n", sd.server_ip));
         str.push_str(&format!("friendly_name = {}\n", sd.friendly_name));
         str
     }

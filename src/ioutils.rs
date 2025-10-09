@@ -39,7 +39,7 @@ fn get_host_net_info() -> Option<(SocketAddr, SocketAddr)>{
     None
 }
 
-pub fn discover_master_ip() -> Option<Ipv4Addr> {
+pub fn discover_server_ip() -> Option<Ipv4Addr> {
     let (host_addr, net_mask) = get_host_net_info()?;
     println!("{:?} {:?}", host_addr, net_mask);
     let (host_addr, net_mask) = match (host_addr.ip(), net_mask.ip()) {
@@ -61,15 +61,15 @@ pub fn discover_master_ip() -> Option<Ipv4Addr> {
             if stream.read_exact(&mut buf).is_err() { continue };
             
             let ret = match &buf {
-                b"master" => {                      // return master IP
+                b"server" => {                      // return server IP
                     stream.write_all(b"search").unwrap();
                     Some(addr.0)
                 },
-                b"client" => {                      // ask client for master IP
+                b"client" => {                      // ask client for server IP
                     let mut addr_buf = [0u8; 4];
                     if stream.read_exact(&mut addr_buf).is_err() { continue };
                     if addr_buf == [0u8; 4] { continue };
-                    Some(Ipv4Addr::from(addr_buf))  // master IP candidate. Connect to check
+                    Some(Ipv4Addr::from(addr_buf))  // server IP candidate. Connect to check
                 },
                 _ => None,
             };
