@@ -11,13 +11,18 @@ const ERROR_EXITCODE: u8 = 1;
 const UPDATE_EXITCODE: u8 = 2;
 
 #[cfg(debug_assertions)]
-const CLIENT_PATH: &str = "../target/debug/client.exe";
-#[cfg(debug_assertions)]
-const NEW_CLIENT_PATH: &str = "../target/debug/new_client.exe";
+mod path {
+    pub const CLIENT_PATH: &str = "target/debug/client";
+    pub const NEW_CLIENT_PATH: &str = "target/debug/new_client";
+}
+
 #[cfg(not(debug_assertions))]
-const CLIENT_PATH: &str = "./client";
-#[cfg(not(debug_assertions))]
-const NEW_CLIENT_PATH: &str = "./new_client";
+mod path {
+    pub const CLIENT_PATH: &str = "client";
+    pub const NEW_CLIENT_PATH: &str = "new_client";
+}
+
+use path::{CLIENT_PATH, NEW_CLIENT_PATH};
 
 
 fn update() -> Result<(), Error> {

@@ -47,11 +47,8 @@ pub fn discover_server_ip() -> Option<Ipv4Addr> {
         _ => None?
     };
 
-    let net_addr = u32::from_be_bytes((host_addr & net_mask).octets());
-    // TODO: soon to_bits will be stabilized. let last_addr = !net_mask.to_bits();
-    
-    let last_addr = u32::from_be_bytes((!net_mask).octets());
-    
+    let net_addr = (host_addr & net_mask).to_bits();
+    let last_addr = !net_mask.to_bits();
     let pool = (0..=last_addr).map(|x| (Ipv4Addr::from(net_addr | x), 1337));
     
     for addr in pool {

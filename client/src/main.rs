@@ -18,18 +18,22 @@ use cluster::netfaces::{ClientState, ClientMessage};
 use ciborium::{ser, de};
 
 
-#[cfg(debug_assertions)]
-const CLIENT_PATH: &str = "../target/debug/client.exe";
-#[cfg(debug_assertions)]
-const NEW_CLIENT_PATH: &str = "../target/debug/new_client.exe";
-
-#[cfg(not(debug_assertions))]
-const CLIENT_PATH: &str = "./client";
-#[cfg(not(debug_assertions))]
-const NEW_CLIENT_PATH: &str = "./new_client";
-
 const ERROR_EXITCODE: u8 = 1;
 const UPDATE_EXITCODE: u8 = 2;
+
+#[cfg(debug_assertions)]
+mod path {
+    pub const CLIENT_PATH: &str = "target/debug/client";
+    pub const NEW_CLIENT_PATH: &str = "target/debug/new_client";
+}
+
+#[cfg(not(debug_assertions))]
+mod path {
+    pub const CLIENT_PATH: &str = "client";
+    pub const NEW_CLIENT_PATH: &str = "new_client";
+}
+
+use path::{CLIENT_PATH, NEW_CLIENT_PATH};
 
 
 #[derive(Debug)]
@@ -108,7 +112,7 @@ fn update(reader: &mut BufReader<&TcpStream>, mut writer: &mut BufWriter<&TcpStr
 fn run_task(cwd: String) -> Result<Output, ClientError> {
     println!("\nTask execution.\n");
     
-    let output = Command::new("sh")  // sh -c for unix
+    let output = Command::new("sh")
         .args(["-c", &format!("chmod u+x ./task.sh; ./task.sh")])
         .current_dir(cwd)
         //.spawn()?.stdout?.read;

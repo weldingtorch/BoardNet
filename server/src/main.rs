@@ -23,10 +23,10 @@ use ciborium::{ser, de, from_reader};
 use queues::{Buffer, IsQueue};
 
 
-#[cfg(debug_assertions)]  // I'm debugging on windows
-const CLIENT_PATH: &str = "../target/debug/client.exe";
-#[cfg(not(debug_assertions))] // Releases are built for unix
-const CLIENT_PATH: &str = "./client";
+#[cfg(debug_assertions)]
+const CLIENT_PATH: &str = "../target/debug/client";
+#[cfg(not(debug_assertions))]
+const CLIENT_PATH: &str = "client";
 
 #[derive(Debug)]
 enum ServerError {
