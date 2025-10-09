@@ -13,14 +13,15 @@ After a three-way-handshake (to check if connection is genuine) and an update cl
 
 The three-way-handshake in normal mode goes as following:
 1. Client TCP connects to port 1337
-2. Server answers with b"master"
+2. Server answers with b"server"
 3. Client answers with b"normal"
 
 Schemes for all legal network interactions:
-![Untitled-2025-09-12-2253](https://github.com/user-attachments/assets/d37bfcc4-999f-4dc6-b474-54d7b8dbf978)
 
 Server also runs a web page via rocket as an interface for adding tasks and viewing their results.
 A task consists of a shell script (will be executed) and an optional attachment (a single file).
+![Untitled-2025-09-12-2253(1)](https://github.com/user-attachments/assets/cf2af37c-4284-43f5-a5ca-313d270c0bbd)
+
 
 When a new task is recieved, it is saved and added to a task queue.
 A separate thread is running to assign tasks in queue to free workers from pool.
@@ -44,7 +45,7 @@ Client has a savedata file that contains server ip address.
 If a connection to the address is unsuccessfull, client invalidates savedata address and bruteforces it.
 Client tries connecting to random ip's in its subnet.
 If through TWH it finds a server it succeeds.
-Otherwise, if it has found another client, it asks via TWH for masters ip and tries it.
+Otherwise, if it has found another client, it asks via TWH for servers ip and tries it.
 This feature was implemented specifically for networks with dynamic ip allocation.
 
 <h2>Upadting</h2>
