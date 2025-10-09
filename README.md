@@ -16,6 +16,9 @@ The three-way-handshake in normal mode goes as following:
 2. Server answers with b"master"
 3. Client answers with b"normal"
 
+Schemes for all legal network interactions:
+![Untitled-2025-09-12-2253](https://github.com/user-attachments/assets/d37bfcc4-999f-4dc6-b474-54d7b8dbf978)
+
 Server also runs a web page via rocket as an interface for adding tasks and viewing their results.
 A task consists of a shell script (will be executed) and an optional attachment (a single file).
 
@@ -58,4 +61,4 @@ Launches the client.
 Depending on exit code may update it by swapping old client file with a new one (created by client),
 then restart the client.
 
-![Untitled-2023-11-11-1851](https://github.com/user-attachments/assets/84694be9-e8ff-437e-be96-7a3aaf04457b)
+![boardnet](https://github.com/user-attachments/assets/84694be9-e8ff-437e-be96-7a3aaf04457b)
